@@ -1,6 +1,8 @@
 package com.suprogramuotavisata.markit.ui
 
 import android.nfc.NfcAdapter
+import android.util.Log
+import com.suprogramuotavisata.markit.NfcDispatcher
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,6 +44,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -687,7 +690,7 @@ fun SettingsScreen() {
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().align(alignment = Alignment.CenterHorizontally)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -695,7 +698,7 @@ fun SettingsScreen() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = s.appName,
+                    text = s.sloganText,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     color = MaterialTheme.colorScheme.primary
@@ -752,6 +755,31 @@ fun SettingsScreen() {
     }
 
     // NFC Pairing Simulation Dialog
+    DisposableEffect(showNfcDialog) {
+        if (showNfcDialog) {
+            NfcDispatcher.setListener { tag ->
+                Log.d("SettingsScreen", "NFC Tag detected: $tag")
+                
+                // Automatically fill connection credentials from Brother NFC Payload
+                printerType = "network"
+                printerIp = "192.168.1.125" // Typical Brother Local IP
+                printerPort = "9100"       // Standard RAW port
+                
+                sharedPrefs.edit()
+                    .putString("printer_type", "network")
+                    .putString("printer_ip", "192.168.1.125")
+                    .putString("printer_port", "9100")
+                    .apply()
+                    
+                showNfcDialog = false
+                Toast.makeText(context, "NFC: Brother PT-P750W sėkmingai susietas!", Toast.LENGTH_LONG).show()
+            }
+        }
+        onDispose {
+            NfcDispatcher.setListener(null)
+        }
+    }
+
     if (showNfcDialog) {
         AlertDialog(
             onDismissRequest = { showNfcDialog = false },

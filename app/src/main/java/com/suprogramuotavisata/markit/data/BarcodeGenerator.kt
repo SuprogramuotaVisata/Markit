@@ -200,4 +200,101 @@ object BarcodeGenerator {
 
         return resultBitmap
     }
+
+    /**
+     * Generates a printable label bitmap containing group information.
+     */
+    fun generateLabel(
+        name: String,
+        code: String,
+        barcode: String?,
+        description: String?
+    ): Bitmap {
+        val width = 600
+        val padding = 40
+        val textSpacing = 20
+        
+        val titlePaint = TextPaint().apply {
+            color = Color.BLACK
+            textSize = 32f
+            isAntiAlias = true
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        
+        val contentPaint = TextPaint().apply {
+            color = Color.BLACK
+            textSize = 24f
+            isAntiAlias = true
+        }
+
+        // Measure layouts
+        val nameLayout = StaticLayout.Builder.obtain(name, 0, name.length, titlePaint, width - 2 * padding).build()
+        val codeText = "Kodas: $code"
+        val codeLayout = StaticLayout.Builder.obtain(codeText, 0, codeText.length, contentPaint, width - 2 * padding).build()
+        
+        var descLayout: StaticLayout? = null
+        if (!description.isNullOrBlank()) {
+            val descText = "Aprašymas: $description"
+            descLayout = StaticLayout.Builder.obtain(descText, 0, descText.length, contentPaint, width - 2 * padding).build()
+        }
+
+        var barcodeBitmap: Bitmap? = null
+        var barcodeHeight = 0
+        val effectiveBarcode = barcode ?: code
+        if (effectiveBarcode.isNotBlank()) {
+            barcodeBitmap = generateBarcode(TranslationManager.stripAccents(effectiveBarcode), width - 2 * padding, 100)
+            if (barcodeBitmap != null) {
+                barcodeHeight = 100 + textSpacing + 30 // barcode + spacing + code text
+            }
+        }
+
+        val totalHeight = padding * 2 + nameLayout.height + textSpacing + codeLayout.height + 
+                         (if (descLayout != null) textSpacing + descLayout.height else 0) +
+                         (if (barcodeBitmap != null) textSpacing + barcodeHeight else 0)
+
+        val result = Bitmap.createBitmap(width, totalHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(result)
+        canvas.drawColor(Color.WHITE)
+
+        var currentY = padding.toFloat()
+        
+        // Draw Name
+        canvas.save()
+        canvas.translate(padding.toFloat(), currentY)
+        nameLayout.draw(canvas)
+        canvas.restore()
+        currentY += nameLayout.height + textSpacing
+
+        // Draw Code
+        canvas.save()
+        canvas.translate(padding.toFloat(), currentY)
+        codeLayout.draw(canvas)
+        canvas.restore()
+        currentY += codeLayout.height + textSpacing
+
+        // Draw Description
+        if (descLayout != null) {
+            canvas.save()
+            canvas.translate(padding.toFloat(), currentY)
+            descLayout.draw(canvas)
+            canvas.restore()
+            currentY += descLayout.height + textSpacing
+        }
+
+        // Draw Barcode
+        if (barcodeBitmap != null) {
+            canvas.drawBitmap(barcodeBitmap, padding.toFloat(), currentY, null)
+            currentY += 100 + textSpacing
+            
+            val labelPaint = Paint().apply {
+                color = Color.BLACK
+                textSize = 20f
+                isAntiAlias = true
+                textAlign = Paint.Align.CENTER
+            }
+            canvas.drawText(effectiveBarcode, (width / 2).toFloat(), currentY, labelPaint)
+        }
+
+        return result
+    }
 }

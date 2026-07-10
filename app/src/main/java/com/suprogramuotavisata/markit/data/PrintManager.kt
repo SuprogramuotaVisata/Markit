@@ -46,4 +46,17 @@ object PrintManager {
             }
         }
     }
+
+    /**
+     * Prints a full group label.
+     */
+    fun printGroupLabel(context: Context, group: ProductGroup) {
+        val labelBitmap = BarcodeGenerator.generateLabel(
+            group.name,
+            group.code,
+            group.barcode,
+            group.description
+        )
+        printBarcode(context, group.name, labelBitmap)
+    }
 }

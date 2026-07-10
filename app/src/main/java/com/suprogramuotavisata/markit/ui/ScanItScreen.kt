@@ -78,6 +78,10 @@ import com.suprogramuotavisata.markit.data.LocalAppStrings
 import com.suprogramuotavisata.markit.data.PrintManager
 import com.suprogramuotavisata.markit.data.ProductGroup
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -226,6 +230,32 @@ fun ScanItScreen() {
                                 bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
                             }
 
+                            // Detect barcode on the captured focus region automatically
+                            val detectedBarcode = suspendCancellableCoroutine<String?> { cont ->
+                                try {
+                                    val bmpWidth = bitmap.width
+                                    val bmpHeight = bitmap.height
+                                    val cropWidth = (bmpWidth * 0.70f).toInt()
+                                    val cropHeight = (bmpHeight * 0.35f).toInt()
+                                    val startX = (bmpWidth - cropWidth) / 2
+                                    val startY = (bmpHeight - cropHeight) / 2
+                                    val croppedBitmap = Bitmap.createBitmap(bitmap, startX, startY, cropWidth, cropHeight)
+
+                                    val inputImage = InputImage.fromBitmap(croppedBitmap, 0)
+                                    val scanner = BarcodeScanning.getClient()
+                                    scanner.process(inputImage)
+                                        .addOnSuccessListener { barcodes ->
+                                            cont.resume(barcodes.firstOrNull()?.rawValue?.trim())
+                                        }
+                                        .addOnFailureListener {
+                                            cont.resume(null)
+                                        }
+                                } catch (e: Exception) {
+                                    Log.e("ScanItScreen", "Failed to run ML Kit barcode scanning", e)
+                                    cont.resume(null)
+                                }
+                            }
+
                             // Generate formatted details
                             val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
                             val currentCode = if (barcodeCode.text.isBlank()) {
@@ -265,8 +295,15 @@ fun ScanItScreen() {
                                 comment = comment.text.trim().takeIf { it.isNotBlank() },
                                 date = currentDate,
                                 localPhotoPath = localFile.absolutePath,
-                                driveFileId = null
+                                driveFileId = null,
+                                barcode = if (!detectedBarcode.isNullOrBlank() && detectedBarcode != currentCode) detectedBarcode else null
                             )
+
+                            if (!detectedBarcode.isNullOrBlank() && detectedBarcode != currentCode) {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "Aptiktas ir priskirtas barkodas: $detectedBarcode", Toast.LENGTH_LONG).show()
+                                }
+                            }
 
                             // Send print order if enabled
                             if (printBarcode) {

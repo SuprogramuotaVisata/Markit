@@ -13,6 +13,15 @@ interface AppStrings {
     val dashboard: String
     val scanIt: String
     val myStore: String
+    val myThings: String
+    val sloganText: String
+    val groupFieldCode: String
+    val groupFieldBarcode: String
+    val groupFieldThereIsIt: String
+    val groupFieldDescription: String
+    val groupFieldBarcodePlaceholder: String
+    val groupFieldThereIsItPlaceholder: String
+    val groupFieldDescriptionPlaceholder: String
     val settings: String
     val createGroup: String
     val groupName: String
@@ -119,11 +128,20 @@ object EnStrings : AppStrings {
     override val appName = "Mark It"
     override val dashboard = "Groups"
     override val scanIt = "Capture"
-    override val myStore = "My Items"
+    override val myStore = "My Things"
+    override val myThings = "My Things"
+    override val sloganText = "Mark it and know where it is (Mark it)"
+    override val groupFieldCode = "Code"
+    override val groupFieldBarcode = "Barcode"
+    override val groupFieldThereIsIt = "There is it"
+    override val groupFieldDescription = "Description"
+    override val groupFieldBarcodePlaceholder = "Additional barcode"
+    override val groupFieldThereIsItPlaceholder = "Where it is placed"
+    override val groupFieldDescriptionPlaceholder = "Group description"
     override val settings = "Settings"
     override val createGroup = "New Group"
     override val groupName = "Group Name"
-    override val enterGroupName = "Enter new group name. It will be mapped to Google Drive."
+    override val enterGroupName = "Enter group details. It will be mapped to Google Drive."
     override val create = "Create"
     override val cancel = "Cancel"
     override val groupAlreadyExists = "Group with this name already exists!"
@@ -227,11 +245,20 @@ object LtStrings : AppStrings {
     override val appName = "Atžymėk tai"
     override val dashboard = "Grupės"
     override val scanIt = "Fotografuoti"
-    override val myStore = "Mano prekės"
+    override val myStore = "Mano daiktai"
+    override val myThings = "Mano daiktai"
+    override val sloganText = "Pažymėk ir žinok, kur jis yra (Pažymėk)"
+    override val groupFieldCode = "Grupės kodas"
+    override val groupFieldBarcode = "Barkodas"
+    override val groupFieldThereIsIt = "Padėta ten"
+    override val groupFieldDescription = "Aprašymas"
+    override val groupFieldBarcodePlaceholder = "Įveskite papildomą barkodą"
+    override val groupFieldThereIsItPlaceholder = "Kur daiktas yra padėtas"
+    override val groupFieldDescriptionPlaceholder = "Grupės aprašymas"
     override val settings = "Nustatymai"
     override val createGroup = "Nauja grupė"
     override val groupName = "Grupės pavadinimas"
-    override val enterGroupName = "Įveskite naujos grupės pavadinimą. Ji bus susieta su Google Drive."
+    override val enterGroupName = "Įveskite naujos grupės duomenis. Ji bus susieta su Google Drive."
     override val create = "Sukurti"
     override val cancel = "Atšaukti"
     override val groupAlreadyExists = "Grupė tokiu pavadinimu jau egzistuoja!"

@@ -4,11 +4,16 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 
 data class ProductGroup(
     val id: Long = 0,
     val name: String,
-    val driveFolderId: String? = null
+    val driveFolderId: String? = null,
+    val code: String = "",
+    val barcode: String? = null,
+    val padetaTen: String? = null,
+    val description: String? = null
 )
 
 data class ProductItem(
@@ -19,20 +24,25 @@ data class ProductItem(
     val date: String,
     val localPhotoPath: String?,
     val driveFileId: String? = null,
-    val groupName: String = ""
+    val groupName: String = "",
+    val barcode: String? = null
 )
 
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
         private const val DATABASE_NAME = "com.suprogramuotavisata.markit.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
 
         // Table Groups
         private const val TABLE_GROUPS = "product_groups"
         private const val KEY_GROUP_ID = "id"
         private const val KEY_GROUP_NAME = "name"
         private const val KEY_GROUP_DRIVE_ID = "drive_folder_id"
+        private const val KEY_GROUP_CODE = "code"
+        private const val KEY_GROUP_BARCODE = "barcode"
+        private const val KEY_GROUP_PADETA_TEN = "padeta_ten"
+        private const val KEY_GROUP_DESCRIPTION = "description"
 
         // Table Items
         private const val TABLE_ITEMS = "items"
@@ -43,13 +53,18 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val KEY_ITEM_DATE = "date"
         private const val KEY_ITEM_LOCAL_PATH = "local_photo_path"
         private const val KEY_ITEM_DRIVE_ID = "drive_file_id"
+        private const val KEY_ITEM_BARCODE = "barcode"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
         val createGroupsTable = ("CREATE TABLE " + TABLE_GROUPS + "("
                 + KEY_GROUP_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + KEY_GROUP_NAME + " TEXT NOT NULL UNIQUE,"
-                + KEY_GROUP_DRIVE_ID + " TEXT" + ")")
+                + KEY_GROUP_DRIVE_ID + " TEXT,"
+                + KEY_GROUP_CODE + " TEXT NOT NULL DEFAULT '',"
+                + KEY_GROUP_BARCODE + " TEXT,"
+                + KEY_GROUP_PADETA_TEN + " TEXT,"
+                + KEY_GROUP_DESCRIPTION + " TEXT" + ")")
 
         val createItemsTable = ("CREATE TABLE " + TABLE_ITEMS + "("
                 + KEY_ITEM_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -59,6 +74,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + KEY_ITEM_DATE + " TEXT NOT NULL,"
                 + KEY_ITEM_LOCAL_PATH + " TEXT,"
                 + KEY_ITEM_DRIVE_ID + " TEXT,"
+                + KEY_ITEM_BARCODE + " TEXT,"
                 + "FOREIGN KEY(" + KEY_ITEM_GROUP_ID + ") REFERENCES " + TABLE_GROUPS + "(" + KEY_GROUP_ID + ") ON DELETE CASCADE" + ")")
 
         db.execSQL(createGroupsTable)
@@ -66,9 +82,33 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_ITEMS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_GROUPS")
-        onCreate(db)
+        if (oldVersion < 2) {
+            try {
+                db.execSQL("ALTER TABLE $TABLE_GROUPS ADD COLUMN $KEY_GROUP_CODE TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE $TABLE_GROUPS ADD COLUMN $KEY_GROUP_BARCODE TEXT")
+                db.execSQL("ALTER TABLE $TABLE_GROUPS ADD COLUMN $KEY_GROUP_PADETA_TEN TEXT")
+                db.execSQL("ALTER TABLE $TABLE_GROUPS ADD COLUMN $KEY_GROUP_DESCRIPTION TEXT")
+                db.execSQL("ALTER TABLE $TABLE_ITEMS ADD COLUMN $KEY_ITEM_BARCODE TEXT")
+                
+                // Backfill unique codes for existing groups if any
+                val cursor = db.rawQuery("SELECT $KEY_GROUP_ID FROM $TABLE_GROUPS", null)
+                cursor.use {
+                    if (it.moveToFirst()) {
+                        val idCol = it.getColumnIndexOrThrow(KEY_GROUP_ID)
+                        do {
+                            val id = it.getLong(idCol)
+                            val uniqueCode = java.util.UUID.randomUUID().toString().take(8).uppercase()
+                            db.execSQL("UPDATE $TABLE_GROUPS SET $KEY_GROUP_CODE = ? WHERE $KEY_GROUP_ID = ?", arrayOf<Any>(uniqueCode, id))
+                        } while (it.moveToNext())
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("DatabaseHelper", "Database migration failed, recreating tables", e)
+                db.execSQL("DROP TABLE IF EXISTS $TABLE_ITEMS")
+                db.execSQL("DROP TABLE IF EXISTS $TABLE_GROUPS")
+                onCreate(db)
+            }
+        }
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -78,11 +118,22 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     // --- Groups API ---
 
-    fun createGroup(name: String, driveFolderId: String? = null): Long {
+    fun createGroup(
+        name: String,
+        driveFolderId: String? = null,
+        code: String = "",
+        barcode: String? = null,
+        thereIs: String? = null,
+        description: String? = null
+    ): Long {
         val db = this.writableDatabase
         val values = ContentValues().apply {
             put(KEY_GROUP_NAME, name)
             put(KEY_GROUP_DRIVE_ID, driveFolderId)
+            put(KEY_GROUP_CODE, code)
+            put(KEY_GROUP_BARCODE, barcode)
+            put(KEY_GROUP_PADETA_TEN, thereIs)
+            put(KEY_GROUP_DESCRIPTION, description)
         }
         return db.insertWithOnConflict(TABLE_GROUPS, null, values, SQLiteDatabase.CONFLICT_IGNORE)
     }
@@ -106,12 +157,20 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 val idIndex = it.getColumnIndexOrThrow(KEY_GROUP_ID)
                 val nameIndex = it.getColumnIndexOrThrow(KEY_GROUP_NAME)
                 val driveIndex = it.getColumnIndexOrThrow(KEY_GROUP_DRIVE_ID)
+                val codeIndex = it.getColumnIndexOrThrow(KEY_GROUP_CODE)
+                val barcodeIndex = it.getColumnIndexOrThrow(KEY_GROUP_BARCODE)
+                val padetaTenIndex = it.getColumnIndexOrThrow(KEY_GROUP_PADETA_TEN)
+                val descIndex = it.getColumnIndexOrThrow(KEY_GROUP_DESCRIPTION)
                 do {
                     list.add(
                         ProductGroup(
                             id = it.getLong(idIndex),
                             name = it.getString(nameIndex),
-                            driveFolderId = it.getString(driveIndex)
+                            driveFolderId = it.getString(driveIndex),
+                            code = it.getString(codeIndex) ?: "",
+                            barcode = it.getString(barcodeIndex),
+                            padetaTen = it.getString(padetaTenIndex),
+                            description = it.getString(descIndex)
                         )
                     )
                 } while (it.moveToNext())
@@ -136,7 +195,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 return ProductGroup(
                     id = it.getLong(it.getColumnIndexOrThrow(KEY_GROUP_ID)),
                     name = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_NAME)),
-                    driveFolderId = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_DRIVE_ID))
+                    driveFolderId = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_DRIVE_ID)),
+                    code = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_CODE)) ?: "",
+                    barcode = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_BARCODE)),
+                    padetaTen = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_PADETA_TEN)),
+                    description = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_DESCRIPTION))
                 )
             }
         }
@@ -159,7 +222,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 return ProductGroup(
                     id = it.getLong(it.getColumnIndexOrThrow(KEY_GROUP_ID)),
                     name = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_NAME)),
-                    driveFolderId = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_DRIVE_ID))
+                    driveFolderId = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_DRIVE_ID)),
+                    code = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_CODE)) ?: "",
+                    barcode = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_BARCODE)),
+                    padetaTen = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_PADETA_TEN)),
+                    description = it.getString(it.getColumnIndexOrThrow(KEY_GROUP_DESCRIPTION))
                 )
             }
         }
@@ -174,7 +241,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         comment: String?,
         date: String,
         localPhotoPath: String?,
-        driveFileId: String? = null
+        driveFileId: String? = null,
+        barcode: String? = null
     ): Long {
         val db = this.writableDatabase
         val values = ContentValues().apply {
@@ -184,6 +252,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             put(KEY_ITEM_DATE, date)
             put(KEY_ITEM_LOCAL_PATH, localPhotoPath)
             put(KEY_ITEM_DRIVE_ID, driveFileId)
+            put(KEY_ITEM_BARCODE, barcode)
         }
         return db.insert(TABLE_ITEMS, null, values)
     }
@@ -200,6 +269,14 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         val db = this.writableDatabase
         val values = ContentValues().apply {
             put(KEY_ITEM_LOCAL_PATH, localPhotoPath)
+        }
+        return db.update(TABLE_ITEMS, values, "$KEY_ITEM_ID = ?", arrayOf(itemId.toString())) > 0
+    }
+
+    fun updateItemBarcode(itemId: Long, barcode: String): Boolean {
+        val db = this.writableDatabase
+        val values = ContentValues().apply {
+            put(KEY_ITEM_BARCODE, barcode)
         }
         return db.update(TABLE_ITEMS, values, "$KEY_ITEM_ID = ?", arrayOf(itemId.toString())) > 0
     }
@@ -228,8 +305,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
         // Search Filters
         if (!searchQuery.isNullOrBlank()) {
-            conditions.add("(i.$KEY_ITEM_CODE LIKE ? OR i.$KEY_ITEM_COMMENT LIKE ? OR i.$KEY_ITEM_DATE LIKE ?)")
+            conditions.add("(i.$KEY_ITEM_CODE LIKE ? OR i.$KEY_ITEM_COMMENT LIKE ? OR i.$KEY_ITEM_DATE LIKE ? OR i.$KEY_ITEM_BARCODE LIKE ?)")
             val searchPattern = "%$searchQuery%"
+            selectionArgs.add(searchPattern)
             selectionArgs.add(searchPattern)
             selectionArgs.add(searchPattern)
             selectionArgs.add(searchPattern)
@@ -255,6 +333,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 val localPathIdx = it.getColumnIndexOrThrow(KEY_ITEM_LOCAL_PATH)
                 val driveIdIdx = it.getColumnIndexOrThrow(KEY_ITEM_DRIVE_ID)
                 val grpNameIdx = it.getColumnIndexOrThrow("group_name")
+                val barcodeIdx = it.getColumnIndexOrThrow(KEY_ITEM_BARCODE)
 
                 do {
                     list.add(
@@ -266,7 +345,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                             date = it.getString(dateIdx),
                             localPhotoPath = it.getString(localPathIdx),
                             driveFileId = it.getString(driveIdIdx),
-                            groupName = it.getString(grpNameIdx)
+                            groupName = it.getString(grpNameIdx),
+                            barcode = it.getString(barcodeIdx)
                         )
                     )
                 } while (it.moveToNext())

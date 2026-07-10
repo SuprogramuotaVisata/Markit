@@ -749,6 +749,16 @@ fun ItemCard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
+                if (!item.barcode.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${s.groupFieldBarcode}: ${item.barcode}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
                 val displayComment = if (item.comment.isNullOrBlank()) "-" else item.comment
                 Text(
