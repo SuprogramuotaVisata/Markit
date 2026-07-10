@@ -203,6 +203,7 @@ object BarcodeGenerator {
 
     /**
      * Generates a printable label bitmap containing group information.
+     * Optimized for narrow tape (e.g., 24mm / 128 pins).
      */
     fun generateLabel(
         name: String,
@@ -210,20 +211,20 @@ object BarcodeGenerator {
         barcode: String?,
         description: String?
     ): Bitmap {
-        val width = 600
-        val padding = 40
-        val textSpacing = 20
+        val width = 128 // Target pins for 24mm tape at 180dpi
+        val padding = 4
+        val textSpacing = 10
         
         val titlePaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 32f
+            textSize = 24f
             isAntiAlias = true
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
         
         val contentPaint = TextPaint().apply {
             color = Color.BLACK
-            textSize = 24f
+            textSize = 18f
             isAntiAlias = true
         }
 
@@ -234,7 +235,7 @@ object BarcodeGenerator {
         
         var descLayout: StaticLayout? = null
         if (!description.isNullOrBlank()) {
-            val descText = "Aprašymas: $description"
+            val descText = "Aprasymas: $description"
             descLayout = StaticLayout.Builder.obtain(descText, 0, descText.length, contentPaint, width - 2 * padding).build()
         }
 
@@ -242,9 +243,10 @@ object BarcodeGenerator {
         var barcodeHeight = 0
         val effectiveBarcode = barcode ?: code
         if (effectiveBarcode.isNotBlank()) {
-            barcodeBitmap = generateBarcode(TranslationManager.stripAccents(effectiveBarcode), width - 2 * padding, 100)
+            // Generate barcode to fit the 128px width
+            barcodeBitmap = generateBarcode(TranslationManager.stripAccents(effectiveBarcode), width - 2 * padding, 60)
             if (barcodeBitmap != null) {
-                barcodeHeight = 100 + textSpacing + 30 // barcode + spacing + code text
+                barcodeHeight = 60 + textSpacing + 20 // barcode + spacing + code label
             }
         }
 
@@ -284,11 +286,11 @@ object BarcodeGenerator {
         // Draw Barcode
         if (barcodeBitmap != null) {
             canvas.drawBitmap(barcodeBitmap, padding.toFloat(), currentY, null)
-            currentY += 100 + textSpacing
+            currentY += 60 + textSpacing
             
             val labelPaint = Paint().apply {
                 color = Color.BLACK
-                textSize = 20f
+                textSize = 14f
                 isAntiAlias = true
                 textAlign = Paint.Align.CENTER
             }

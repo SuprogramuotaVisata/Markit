@@ -5,9 +5,14 @@ import android.graphics.Bitmap
 import android.util.Log
 import android.widget.Toast
 import androidx.print.PrintHelper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 object PrintManager {
     private const val TAG = "PrintManager"
+    private val scope = CoroutineScope(Dispatchers.Main)
 
     /**
      * Prints the barcode using the configured connection type (System, Wi-Fi/Network, or Bluetooth).
@@ -22,10 +27,22 @@ object PrintManager {
         when (printerType) {
             "network" -> {
                 val ip = sharedPrefs.getString("printer_ip", "") ?: ""
-                val port = sharedPrefs.getString("printer_port", "9100") ?: "9100"
+                val portStr = sharedPrefs.getString("printer_port", "9100") ?: "9100"
+                val port = portStr.toIntOrNull() ?: 9100
+                
                 Log.d(TAG, "Network Printing - Target IP: $ip, Port: $port, Code: $cleanCode")
-                // Generic ESC/POS Wi-Fi printing implementation (simulation)
-                Toast.makeText(context, "Network Print (IP: $ip, Port: $port) -> $cleanCode", Toast.LENGTH_LONG).show()
+                
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        BrotherPrinterDriver.printBitmap(ip, port, barcodeBitmap)
+                    }
+                    if (result.isSuccess) {
+                        Toast.makeText(context, "Sėkmingai išsiųsta į spausdintuvą", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val error = result.exceptionOrNull()?.message ?: "Nežinoma klaida"
+                        Toast.makeText(context, "Spausdinimo klaida: $error", Toast.LENGTH_LONG).show()
+                    }
+                }
             }
             "bluetooth" -> {
                 val btDevice = sharedPrefs.getString("printer_bt", "") ?: ""

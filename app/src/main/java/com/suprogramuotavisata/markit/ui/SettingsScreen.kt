@@ -761,13 +761,14 @@ fun SettingsScreen() {
                 Log.d("SettingsScreen", "NFC Tag detected: $tag")
                 
                 // Automatically fill connection credentials from Brother NFC Payload
+                // Note: PT-P750W typical Wi-Fi Direct IP is 192.168.118.1
                 printerType = "network"
-                printerIp = "192.168.1.125" // Typical Brother Local IP
+                printerIp = "192.168.118.1"
                 printerPort = "9100"       // Standard RAW port
                 
                 sharedPrefs.edit()
                     .putString("printer_type", "network")
-                    .putString("printer_ip", "192.168.1.125")
+                    .putString("printer_ip", "192.168.118.1")
                     .putString("printer_port", "9100")
                     .apply()
                     
@@ -815,12 +816,12 @@ fun SettingsScreen() {
                         onClick = {
                             // Automatically fill connection credentials from Simulated Brother NFC Payload
                             printerType = "network"
-                            printerIp = "192.168.1.125" // Typical Brother Local IP
+                            printerIp = "192.168.118.1" // Wi-Fi Direct Default
                             printerPort = "9100"       // Standard RAW port
                             
                             sharedPrefs.edit()
                                 .putString("printer_type", "network")
-                                .putString("printer_ip", "192.168.1.125")
+                                .putString("printer_ip", "192.168.118.1")
                                 .putString("printer_port", "9100")
                                 .apply()
                                 
