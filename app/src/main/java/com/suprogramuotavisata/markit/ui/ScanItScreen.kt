@@ -287,8 +287,13 @@ fun ScanItScreen() {
 
                             if (printBarcode) {
                                 withContext(Dispatchers.Main) {
-                                    val barcodeBmp = BarcodeGenerator.generateBarcode(currentCode, 300, 100)
-                                    if (barcodeBmp != null) PrintManager.printBarcode(context, currentCode, barcodeBmp)
+                                    PrintManager.printItemLabel(
+                                        context = context,
+                                        groupName = selectedGroup!!.name,
+                                        code = currentCode,
+                                        barcode = finalBarcode,
+                                        comment = comment.text.trim().takeIf { it.isNotBlank() }
+                                    )
                                 }
                             }
 

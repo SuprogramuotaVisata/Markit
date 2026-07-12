@@ -59,7 +59,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.suprogramuotavisata.markit.data.BarcodeGenerator
 import com.suprogramuotavisata.markit.data.GoogleDriveService
 import com.suprogramuotavisata.markit.data.LocalAppStrings
 import com.suprogramuotavisata.markit.data.PrintManager
@@ -690,12 +689,14 @@ fun SettingsScreen() {
 
                 Button(
                     onClick = {
-                        val barcodeBmp = BarcodeGenerator.generateBarcode("TEST-12345", 300, 100)
-                        if (barcodeBmp != null) {
-                            PrintManager.printBarcode(context, s.testBarcodeText, barcodeBmp)
-                        } else {
-                            Toast.makeText(context, s.printBarcodeError, Toast.LENGTH_SHORT).show()
-                        }
+                        // Create a mock group for testing full label layout
+                        val testGroup = com.suprogramuotavisata.markit.data.ProductGroup(
+                            name = "TESTINIS ELEMENTAS",
+                            code = "ABC-123",
+                            barcode = "12345678",
+                            description = "Tai yra bandomasis lipdukas patikrinimui."
+                        )
+                        PrintManager.printGroupLabel(context, testGroup)
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -720,7 +721,7 @@ fun SettingsScreen() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = s.sloganText,
+                    text = "${s.appName} - ${s.sloganText}",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     color = MaterialTheme.colorScheme.primary

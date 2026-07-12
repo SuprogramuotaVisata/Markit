@@ -3,6 +3,7 @@ package com.suprogramuotavisata.markit.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
+import android.app.AlertDialog
 import android.widget.Toast
 import androidx.print.PrintHelper
 import kotlinx.coroutines.CoroutineScope
@@ -34,18 +35,47 @@ object PrintManager {
                 
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
-                        BrotherPrinterDriver.printBitmap(context, ip, port, barcodeBitmap)
+                        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                        val lp = cm.getLinkProperties(cm.activeNetwork)
+                        
+                        // Default to .1 if no gateway found (Brother standard)
+                        var finalIp = "192.168.118.1"
+                        
+                        val gateway = lp?.routes?.firstOrNull { it.isDefaultRoute }?.gateway?.hostAddress
+                        if (gateway != null && gateway != "0.0.0.0") {
+                            finalIp = gateway
+                        }
+
+                        Log.d(TAG, "Naudojamas spausdintuvo IP: $finalIp")
+                        BrotherPrinterDriver.printBitmap(context, finalIp, port, barcodeBitmap)
                     }
                     if (result.isSuccess) {
                         Toast.makeText(context, "Sėkmingai išsiųsta į spausdintuvą", Toast.LENGTH_SHORT).show()
                     } else {
                         val ex = result.exceptionOrNull()
+                        
+                        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                        val lp = cm.getLinkProperties(cm.activeNetwork)
+                        val phoneIp = lp?.linkAddresses?.firstOrNull { it.address is java.net.Inet4Address }?.address?.hostAddress ?: "Nežinomas"
+                        val gatewayIp = lp?.routes?.firstOrNull { it.isDefaultRoute }?.gateway?.hostAddress ?: "Nerastas"
+
                         val errorMsg = when {
-                            ex is java.net.ConnectException -> "Nepavyko prisijungti. Patikrinkite ar telefonas prisijungęs prie spausdintuvo Wi-Fi tinklo (IP: $ip)."
-                            ex is java.net.SocketTimeoutException -> "Baigėsi laukimo laikas. Spausdintuvas neatsako."
-                            else -> ex?.message ?: "Nežinoma ryšio klaida"
+                            ex is java.net.SocketTimeoutException -> 
+                                "LAUKIMO LAIKAS BAIGĖSI.\n\n" +
+                                "DIAGNOSTIKA:\n" +
+                                "- Telefono IP: $phoneIp\n" +
+                                "- Spausdintuvo (Gateway) IP: $gatewayIp"
+                            ex is java.net.ConnectException -> 
+                                "RYŠYS ATMESTAS.\n\n" +
+                                "Spausdintuvas rasta, bet jis užimtas arba neįleido programos. Išjunkite ir vėl įjunkite jį."
+                            else -> "KLAIDA: ${ex?.message}"
                         }
-                        Toast.makeText(context, "Spausdinimo klaida: $errorMsg", Toast.LENGTH_LONG).show()
+                        
+                        AlertDialog.Builder(context)
+                            .setTitle("Spausdinimo problema")
+                            .setMessage(errorMsg)
+                            .setPositiveButton("Gerai", null)
+                            .show()
                     }
                 }
             }
@@ -80,5 +110,18 @@ object PrintManager {
             group.description
         )
         printBarcode(context, group.name, labelBitmap)
+    }
+
+    /**
+     * Prints a full item label.
+     */
+    fun printItemLabel(context: Context, groupName: String, code: String, barcode: String?, comment: String?) {
+        val labelBitmap = BarcodeGenerator.generateLabel(
+            groupName,
+            code,
+            barcode,
+            comment
+        )
+        printBarcode(context, code, labelBitmap)
     }
 }
