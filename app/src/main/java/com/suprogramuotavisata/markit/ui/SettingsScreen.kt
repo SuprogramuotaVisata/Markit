@@ -529,9 +529,40 @@ fun SettingsScreen() {
                         },
                         label = { Text(s.printerTypeBluetooth) }
                     )
+                    FilterChip(
+                        selected = printerType == "usb",
+                        onClick = {
+                            printerType = "usb"
+                            sharedPrefs.edit().putString("printer_type", "usb").apply()
+                        },
+                        label = { Text(s.printerTypeUsb) }
+                    )
                 }
 
                 // Dynamic Input forms depending on Selected Printer Type
+                if (printerType == "usb") {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                "Brother PT-P750W USB patarimas:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "1. Prijunkite spausdintuvą prie telefono naudodami USB-OTG adapterį.\n" +
+                                "2. Įjunkite spausdintuvą ir įsitikinkite, kad nedega „Editor Lite“ lemputė (jei dega, paspauskite ir palaikykite „Editor Lite“ mygtuką kol lemputė užges).\n" +
+                                "3. Paspaudus „Spausdinti“, sistema paprašys leidimo naudoti USB įrenginį. Suteikite jį.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
                 if (printerType == "network") {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)),

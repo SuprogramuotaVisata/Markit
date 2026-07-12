@@ -35,22 +35,30 @@ object PrintManager {
                 
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
-                        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-                        val lp = cm.getLinkProperties(cm.activeNetwork)
-                        
-                        // Default to .1 if no gateway found (Brother standard)
-                        var finalIp = "192.168.118.1"
-                        
-                        val gateway = lp?.routes?.firstOrNull { it.isDefaultRoute }?.gateway?.hostAddress
-                        if (gateway != null && gateway != "0.0.0.0") {
-                            finalIp = gateway
+                        var finalIp = ip.trim()
+                        if (finalIp.isEmpty()) {
+                            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                            val lp = cm.getLinkProperties(cm.activeNetwork)
+                            
+                            // Default to .1 if no gateway found (Brother standard)
+                            finalIp = "192.168.118.1"
+                            
+                            val gateway = lp?.routes?.firstOrNull { it.isDefaultRoute }?.gateway?.hostAddress
+                            if (gateway != null && gateway != "0.0.0.0") {
+                                finalIp = gateway
+                            }
                         }
 
                         Log.d(TAG, "Naudojamas spausdintuvo IP: $finalIp")
                         BrotherPrinterDriver.printBitmap(context, finalIp, port, barcodeBitmap)
                     }
                     if (result.isSuccess) {
-                        Toast.makeText(context, "Sėkmingai išsiųsta į spausdintuvą", Toast.LENGTH_SHORT).show()
+                        val count = result.getOrNull() ?: 0
+                        AlertDialog.Builder(context)
+                            .setTitle("Spausdinimas sėkmingas")
+                            .setMessage("Sėkmingai išsiųsta į tinklo spausdintuvą.\nGeneruoti juodi taškai: $count")
+                            .setPositiveButton("Gerai", null)
+                            .show()
                     } else {
                         val ex = result.exceptionOrNull()
                         
@@ -74,6 +82,29 @@ object PrintManager {
                         AlertDialog.Builder(context)
                             .setTitle("Spausdinimo problema")
                             .setMessage(errorMsg)
+                            .setPositiveButton("Gerai", null)
+                            .show()
+                    }
+                }
+            }
+            "usb" -> {
+                Log.d(TAG, "USB Printing - Code: $cleanCode")
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        BrotherPrinterDriver.printBitmapUsb(context, barcodeBitmap)
+                    }
+                    if (result.isSuccess) {
+                        val count = result.getOrNull() ?: 0
+                        AlertDialog.Builder(context)
+                            .setTitle("Spausdinimas sėkmingas")
+                            .setMessage("Sėkmingai išsiųsta per USB.\nGeneruoti juodi taškai: $count")
+                            .setPositiveButton("Gerai", null)
+                            .show()
+                    } else {
+                        val ex = result.exceptionOrNull()
+                        AlertDialog.Builder(context)
+                            .setTitle("Spausdinimo per USB klaida")
+                            .setMessage(ex?.message ?: "Nežinoma USB klaida")
                             .setPositiveButton("Gerai", null)
                             .show()
                     }

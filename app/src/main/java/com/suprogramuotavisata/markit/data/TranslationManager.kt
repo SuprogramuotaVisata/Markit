@@ -95,6 +95,7 @@ interface AppStrings {
     val printerTypeSystem: String
     val printerTypeNetwork: String
     val printerTypeBluetooth: String
+    val printerTypeUsb: String
     val printerIpLabel: String
     val printerPortLabel: String
     val printerBtLabel: String
@@ -211,6 +212,7 @@ object EnStrings : AppStrings {
     override val printerTypeSystem = "System Print Dialog"
     override val printerTypeNetwork = "Wi-Fi / Network Printer"
     override val printerTypeBluetooth = "Bluetooth Printer"
+    override val printerTypeUsb = "USB Printer Connection"
     override val printerIpLabel = "Printer IP Address"
     override val printerPortLabel = "Printer Port (e.g. 9100)"
     override val printerBtLabel = "Bluetooth Device MAC / Name"
@@ -328,6 +330,7 @@ object LtStrings : AppStrings {
     override val printerTypeSystem = "Sisteminis spausdinimo langas"
     override val printerTypeNetwork = "Tinklo / Wi-Fi spausdintuvas"
     override val printerTypeBluetooth = "Bluetooth spausdintuvas"
+    override val printerTypeUsb = "USB jungtis"
     override val printerIpLabel = "Spausdintuvo IP adresas"
     override val printerPortLabel = "Spausdintuvo prievadas (Port pvz. 9100)"
     override val printerBtLabel = "Bluetooth įrenginio MAC / pavadinimas"
