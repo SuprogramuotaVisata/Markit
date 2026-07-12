@@ -3,9 +3,14 @@ package com.suprogramuotavisata.markit.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Inventory
@@ -50,41 +55,57 @@ fun MainContainer(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = s.appName,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
-                actions = {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(end = 8.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "EN",
-                            fontSize = 12.sp,
-                            fontWeight = if (currentLanguage == AppLanguage.EN) FontWeight.Bold else FontWeight.Normal,
-                            color = if (currentLanguage == AppLanguage.EN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.clickable { onLanguageToggle(AppLanguage.EN) }
-                        )
-                        Switch(
-                            checked = currentLanguage == AppLanguage.LT,
-                            onCheckedChange = { isLt ->
-                                onLanguageToggle(if (isLt) AppLanguage.LT else AppLanguage.EN)
-                            },
-                            modifier = Modifier.scale(0.7f)
-                        )
-                        Text(
-                            text = "LT",
-                            fontSize = 12.sp,
-                            fontWeight = if (currentLanguage == AppLanguage.LT) FontWeight.Bold else FontWeight.Normal,
-                            color = if (currentLanguage == AppLanguage.LT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.clickable { onLanguageToggle(AppLanguage.LT) }
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            BeeLogo(modifier = Modifier.size(36.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "${s.appName} - ${s.sloganText}",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                textAlign = TextAlign.Start
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Text(
+                                text = "EN",
+                                fontSize = 11.sp,
+                                fontWeight = if (currentLanguage == AppLanguage.EN) FontWeight.Bold else FontWeight.Normal,
+                                color = if (currentLanguage == AppLanguage.EN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.clickable { onLanguageToggle(AppLanguage.EN) }
+                            )
+                            Switch(
+                                checked = currentLanguage == AppLanguage.LT,
+                                onCheckedChange = { isLt ->
+                                    onLanguageToggle(if (isLt) AppLanguage.LT else AppLanguage.EN)
+                                },
+                                modifier = Modifier.scale(0.6f)
+                            )
+                            Text(
+                                text = "LT",
+                                fontSize = 11.sp,
+                                fontWeight = if (currentLanguage == AppLanguage.LT) FontWeight.Bold else FontWeight.Normal,
+                                color = if (currentLanguage == AppLanguage.LT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.clickable { onLanguageToggle(AppLanguage.LT) }
+                            )
+                        }
                     }
-                }
+                },
+                actions = {}
             )
         },
         bottomBar = {

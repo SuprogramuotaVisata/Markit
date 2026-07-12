@@ -34,13 +34,18 @@ object PrintManager {
                 
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
-                        BrotherPrinterDriver.printBitmap(ip, port, barcodeBitmap)
+                        BrotherPrinterDriver.printBitmap(context, ip, port, barcodeBitmap)
                     }
                     if (result.isSuccess) {
                         Toast.makeText(context, "Sėkmingai išsiųsta į spausdintuvą", Toast.LENGTH_SHORT).show()
                     } else {
-                        val error = result.exceptionOrNull()?.message ?: "Nežinoma klaida"
-                        Toast.makeText(context, "Spausdinimo klaida: $error", Toast.LENGTH_LONG).show()
+                        val ex = result.exceptionOrNull()
+                        val errorMsg = when {
+                            ex is java.net.ConnectException -> "Nepavyko prisijungti. Patikrinkite ar telefonas prisijungęs prie spausdintuvo Wi-Fi tinklo (IP: $ip)."
+                            ex is java.net.SocketTimeoutException -> "Baigėsi laukimo laikas. Spausdintuvas neatsako."
+                            else -> ex?.message ?: "Nežinoma ryšio klaida"
+                        }
+                        Toast.makeText(context, "Spausdinimo klaida: $errorMsg", Toast.LENGTH_LONG).show()
                     }
                 }
             }

@@ -1,5 +1,6 @@
 package com.suprogramuotavisata.markit.ui
 
+import android.view.WindowManager
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -17,17 +18,9 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -35,28 +28,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,6 +64,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,6 +82,27 @@ fun ScanItScreen() {
     val dbHelper = remember { DatabaseHelper(context) }
     val coroutineScope = rememberCoroutineScope()
     val s = LocalAppStrings.current
+    val focusManager = LocalFocusManager.current
+    
+    val codeFocus = remember { FocusRequester() }
+    val barcodeFocus = remember { FocusRequester() }
+    val commentFocus = remember { FocusRequester() }
+
+    // Form inputs
+    var itemCode by remember { mutableStateOf(TextFieldValue("")) }
+    var itemBarcode by remember { mutableStateOf(TextFieldValue("")) }
+    var comment by remember { mutableStateOf(TextFieldValue("")) }
+
+    // Toggle configuration states
+    var addCode by remember { mutableStateOf(true) }
+    var addComment by remember { mutableStateOf(true) }
+    var addDate by remember { mutableStateOf(true) }
+    var printBarcode by remember { mutableStateOf(false) }
+
+    // Database state
+    var groups by remember { mutableStateOf<List<ProductGroup>>(emptyList()) }
+    var selectedGroup by remember { mutableStateOf<ProductGroup?>(null) }
+    var isGroupsLoading by remember { mutableStateOf(true) }
 
     // Camera runtime permission state
     var hasCameraPermission by remember {
@@ -110,43 +113,14 @@ fun ScanItScreen() {
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasCameraPermission = isGranted
-    }
+    ) { hasCameraPermission = it }
 
-    // Automatically request camera permission on screen launch
+    // Automatically request camera permission and auto-generate code on launch
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
-    }
-
-    // Database state
-    var groups by remember { mutableStateOf<List<ProductGroup>>(emptyList()) }
-    var selectedGroup by remember { mutableStateOf<ProductGroup?>(null) }
-    var isGroupsLoading by remember { mutableStateOf(true) }
-
-    // Form inputs
-    var barcodeCode by remember { mutableStateOf(TextFieldValue("")) }
-    var comment by remember { mutableStateOf(TextFieldValue("")) }
-
-    // Toggle configuration states (initially loaded from Settings defaults)
-    var addCode by remember { mutableStateOf(true) }
-    var addComment by remember { mutableStateOf(true) }
-    var addDate by remember { mutableStateOf(true) }
-    var printBarcode by remember { mutableStateOf(false) }
-
-    // Camera operational state
-    val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
-    val imageCapture = remember { ImageCapture.Builder().build() }
-    val previewView = remember { PreviewView(context) }
-    var isCapturing by remember { mutableStateOf(false) }
-
-    // Dropdown state
-    var isDropdownExpanded by remember { mutableStateOf(false) }
-
-    // Load defaults from SharedPreferences and load groups
-    LaunchedEffect(Unit) {
+        
         val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
         addCode = sharedPrefs.getBoolean("default_add_code", true)
         addComment = sharedPrefs.getBoolean("default_add_comments", true)
@@ -160,24 +134,41 @@ fun ScanItScreen() {
             selectedGroup = groups.first()
         }
         isGroupsLoading = false
+
+        // 3. Auto-generate code and focus/select
+        val uniqueCode = UUID.randomUUID().toString().take(8).uppercase()
+        itemCode = TextFieldValue(text = uniqueCode, selection = TextRange(0, uniqueCode.length))
+        codeFocus.requestFocus()
     }
 
-    // Bind camera lifecycle reactively when permission is granted
+    // Prevent screen dimming
+    DisposableEffect(Unit) {
+        val activity = context as? android.app.Activity
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // Camera operational state
+    val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
+    val imageCapture = remember { ImageCapture.Builder().build() }
+    val previewView = remember { PreviewView(context) }
+    var isCapturing by remember { mutableStateOf(false) }
+
+    // Dropdown state
+    var isDropdownExpanded by remember { mutableStateOf(false) }
+
+    // Bind camera lifecycle
     LaunchedEffect(hasCameraPermission) {
         if (hasCameraPermission) {
             val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
                 val preview = Preview.Builder().build()
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
                 try {
                     cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        cameraSelector,
-                        preview,
-                        imageCapture
-                    )
+                    cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
                     preview.setSurfaceProvider(previewView.surfaceProvider)
                 } catch (e: Exception) {
                     Log.e("ScanItScreen", "Camera binding failed", e)
@@ -187,12 +178,17 @@ fun ScanItScreen() {
     }
 
     // Barcode scanner trigger
-    fun triggerBarcodeScanner() {
+    fun triggerBarcodeScanner(targetField: String) {
         val scanner = GmsBarcodeScanning.getClient(context)
         scanner.startScan()
             .addOnSuccessListener { barcode ->
                 barcode.rawValue?.let {
-                    barcodeCode = TextFieldValue(text = it, selection = TextRange(0, it.length))
+                    val newVal = TextFieldValue(text = it, selection = TextRange(0, it.length))
+                    if (targetField == "code") {
+                        itemCode = newVal
+                    } else {
+                        itemBarcode = newVal
+                    }
                     Toast.makeText(context, "${s.scannedCode}: $it", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -216,21 +212,19 @@ fun ScanItScreen() {
                 override fun onCaptureSuccess(image: ImageProxy) {
                     coroutineScope.launch(Dispatchers.IO) {
                         try {
-                            // Extract bytes and rotation from ImageProxy
                             val buffer = image.planes[0].buffer
                             val bytes = ByteArray(buffer.remaining())
                             buffer.get(bytes)
                             val rotationDegrees = image.imageInfo.rotationDegrees
                             image.close()
 
-                            // Decode and rotate bitmap
                             var bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                             if (rotationDegrees != 0) {
                                 val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
                                 bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
                             }
 
-                            // Detect barcode on the captured focus region automatically
+                            // Auto-detect barcode on capture region
                             val detectedBarcode = suspendCancellableCoroutine<String?> { cont ->
                                 try {
                                     val bmpWidth = bitmap.width
@@ -240,32 +234,24 @@ fun ScanItScreen() {
                                     val startX = (bmpWidth - cropWidth) / 2
                                     val startY = (bmpHeight - cropHeight) / 2
                                     val croppedBitmap = Bitmap.createBitmap(bitmap, startX, startY, cropWidth, cropHeight)
-
                                     val inputImage = InputImage.fromBitmap(croppedBitmap, 0)
-                                    val scanner = BarcodeScanning.getClient()
-                                    scanner.process(inputImage)
-                                        .addOnSuccessListener { barcodes ->
-                                            cont.resume(barcodes.firstOrNull()?.rawValue?.trim())
-                                        }
-                                        .addOnFailureListener {
-                                            cont.resume(null)
-                                        }
-                                } catch (e: Exception) {
-                                    Log.e("ScanItScreen", "Failed to run ML Kit barcode scanning", e)
-                                    cont.resume(null)
-                                }
+                                    BarcodeScanning.getClient().process(inputImage)
+                                        .addOnSuccessListener { barcodes -> cont.resume(barcodes.firstOrNull()?.rawValue?.trim()) }
+                                        .addOnFailureListener { cont.resume(null) }
+                                } catch (e: Exception) { cont.resume(null) }
                             }
 
-                            // Generate formatted details
                             val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-                            val currentCode = if (barcodeCode.text.isBlank()) {
-                                // Auto-generate barcode if blank
-                                UUID.randomUUID().toString().take(8).uppercase()
+                            val currentCode = itemCode.text.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString().take(8).uppercase()
+                            
+                            val finalBarcode = if (itemBarcode.text.isNotBlank()) {
+                                itemBarcode.text
+                            } else if (!detectedBarcode.isNullOrBlank() && detectedBarcode != currentCode) {
+                                detectedBarcode
                             } else {
-                                barcodeCode.text
+                                null
                             }
 
-                            // Generate and overlay information on photo
                             val finalBitmap = BarcodeGenerator.createOverlayPhoto(
                                 original = bitmap,
                                 code = currentCode,
@@ -276,10 +262,7 @@ fun ScanItScreen() {
                                 addDate = addDate
                             )
 
-                            // Save photo locally
-                            val photosDir = File(context.filesDir, "photos")
-                            if (!photosDir.exists()) photosDir.mkdirs()
-                            
+                            val photosDir = File(context.filesDir, "photos").apply { if (!exists()) mkdirs() }
                             val fileName = "IMG_${System.currentTimeMillis()}_CODE_${currentCode}.jpg"
                             val localFile = File(photosDir, fileName)
                             
@@ -288,7 +271,6 @@ fun ScanItScreen() {
                             val finalBytes = localOutStream.toByteArray()
                             localFile.writeBytes(finalBytes)
 
-                            // Insert product record into SQLite
                             val itemId = dbHelper.createItem(
                                 groupId = selectedGroup!!.id,
                                 code = currentCode,
@@ -296,68 +278,39 @@ fun ScanItScreen() {
                                 date = currentDate,
                                 localPhotoPath = localFile.absolutePath,
                                 driveFileId = null,
-                                barcode = if (!detectedBarcode.isNullOrBlank() && detectedBarcode != currentCode) detectedBarcode else null
+                                barcode = finalBarcode
                             )
 
-                            if (!detectedBarcode.isNullOrBlank() && detectedBarcode != currentCode) {
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, "Aptiktas ir priskirtas barkodas: $detectedBarcode", Toast.LENGTH_LONG).show()
-                                }
+                            if (finalBarcode != null && finalBarcode != itemBarcode.text) {
+                                withContext(Dispatchers.Main) { Toast.makeText(context, "Aptiktas barkodas: $finalBarcode", Toast.LENGTH_LONG).show() }
                             }
 
-                            // Send print order if enabled
                             if (printBarcode) {
                                 withContext(Dispatchers.Main) {
                                     val barcodeBmp = BarcodeGenerator.generateBarcode(currentCode, 300, 100)
-                                    if (barcodeBmp != null) {
-                                        PrintManager.printBarcode(context, currentCode, barcodeBmp)
-                                    } else {
-                                        Toast.makeText(context, s.printBarcodeError, Toast.LENGTH_SHORT).show()
-                                    }
+                                    if (barcodeBmp != null) PrintManager.printBarcode(context, currentCode, barcodeBmp)
                                 }
                             }
 
-                            val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
-                            val activeStorageMode = sharedPrefs.getString("active_storage_mode", "local") ?: "local"
-
+                            val activeStorageMode = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE).getString("active_storage_mode", "local")
                             if (activeStorageMode == "google_drive") {
-                                // Upload to Google Drive in the background
-                                val groupName = selectedGroup!!.name
-                                val driveFileId = GoogleDriveService.uploadPhoto(
-                                    context = context,
-                                    categoryName = groupName,
-                                    fileName = fileName,
-                                    fileBytes = finalBytes
-                                )
-
+                                val driveFileId = GoogleDriveService.uploadPhoto(context, selectedGroup!!.name, fileName, finalBytes)
                                 if (driveFileId != null && itemId > 0) {
                                     dbHelper.updateItemDriveId(itemId, driveFileId)
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, s.saveSyncSuccess, Toast.LENGTH_SHORT).show()
-                                    }
-                                } else if (itemId > 0) {
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, s.saveLocalOnly, Toast.LENGTH_SHORT).show()
-                                    }
+                                    withContext(Dispatchers.Main) { Toast.makeText(context, s.saveSyncSuccess, Toast.LENGTH_SHORT).show() }
                                 }
                             } else {
-                                // Local storage mode only
-                                if (itemId > 0) {
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, "Išsaugota vietinėje saugykloje!", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
+                                if (itemId > 0) withContext(Dispatchers.Main) { Toast.makeText(context, "Išsaugota!", Toast.LENGTH_SHORT).show() }
                             }
 
-                            // Reset inputs on success
                             withContext(Dispatchers.Main) {
-                                barcodeCode = TextFieldValue("")
+                                itemCode = TextFieldValue(UUID.randomUUID().toString().take(8).uppercase())
+                                itemBarcode = TextFieldValue("")
                                 comment = TextFieldValue("")
                                 isCapturing = false
+                                codeFocus.requestFocus()
                             }
-
                         } catch (e: Exception) {
-                            Log.e("ScanItScreen", "Error saving/processing image", e)
                             withContext(Dispatchers.Main) {
                                 Toast.makeText(context, "${s.dbSaveError}: ${e.message}", Toast.LENGTH_LONG).show()
                                 isCapturing = false
@@ -374,270 +327,123 @@ fun ScanItScreen() {
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // Top Part: Camera Preview card
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(300.dp)
-                .padding(16.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color.Black)
-        ) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(modifier = Modifier.fillMaxWidth().height(300.dp).padding(16.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black)) {
             if (hasCameraPermission) {
-                AndroidView(
-                    factory = { previewView },
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                // Overlaid Capture Button
+                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
                 if (groups.isNotEmpty()) {
-                    Button(
-                        onClick = { captureAndSaveImage() },
-                        enabled = !isCapturing && selectedGroup != null,
-                        shape = RoundedCornerShape(50),
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 16.dp)
-                    ) {
-                        if (isCapturing) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(s.captureBtn, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                    Button(onClick = { captureAndSaveImage() }, enabled = !isCapturing && selectedGroup != null, shape = RoundedCornerShape(50), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)) {
+                        if (isCapturing) CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                        else { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.PhotoCamera, null); Spacer(modifier = Modifier.width(8.dp)); Text(s.captureBtn, fontWeight = FontWeight.Bold) } }
                     }
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.7f))
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).padding(24.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = Color.White, modifier = Modifier.size(48.dp))
+                            Icon(Icons.Default.Info, null, tint = Color.White, modifier = Modifier.size(48.dp))
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                s.createGroupFirstPrompt,
-                                color = Color.White,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
+                            Text(s.createGroupFirstPrompt, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
                     }
                 }
             } else {
-                // If permission is not yet granted, show placeholder with grant request action button
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            "Kamerai reikalingas leidimas",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                        Text("Kamerai reikalingas leidimas", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }
-                        ) {
-                            Text("Suteikti leidima")
-                        }
+                        Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("Suteikti leidima") }
                     }
                 }
             }
         }
 
-        // Bottom Part: Scrollable form controls grouped into Cards
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Card 1: Product info input fields
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = s.appName,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    if (isGroupsLoading) {
-                        CircularProgressIndicator()
-                    } else if (groups.isEmpty()) {
-                        Text(
-                            text = s.noGroupsTitle,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp
-                        )
-                    } else {
-                        // Category/Group Dropdown
-                        ExposedDropdownMenuBox(
-                            expanded = isDropdownExpanded,
-                            onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }
-                        ) {
+        Column(modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (isGroupsLoading) CircularProgressIndicator()
+                    else if (groups.isEmpty()) Text(text = s.noGroupsTitle, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    else {
+                        ExposedDropdownMenuBox(expanded = isDropdownExpanded, onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }) {
                             OutlinedTextField(
-                                readOnly = true,
-                                value = selectedGroup?.name ?: s.selectGroup,
-                                onValueChange = {},
-                                label = { Text(s.groupLabel) },
+                                readOnly = true, value = selectedGroup?.name ?: s.selectGroup, onValueChange = {}, label = { Text(s.groupLabel) },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
-                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
-                                    focusedContainerColor = Color(0xFFF2F2F2),
-                                    unfocusedContainerColor = Color(0xFFF9F9F9)
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor()
+                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
                             )
-                            ExposedDropdownMenu(
-                                expanded = isDropdownExpanded,
-                                onDismissRequest = { isDropdownExpanded = false }
-                            ) {
-                                groups.forEach { group ->
-                                    DropdownMenuItem(
-                                        text = { Text(group.name) },
-                                        onClick = {
-                                            selectedGroup = group
-                                            isDropdownExpanded = false
-                                        }
-                                    )
-                                }
+                            ExposedDropdownMenu(expanded = isDropdownExpanded, onDismissRequest = { isDropdownExpanded = false }) {
+                                groups.forEach { group -> DropdownMenuItem(text = { Text(group.name) }, onClick = { selectedGroup = group; isDropdownExpanded = false }) }
                             }
                         }
                     }
 
-                    // Code input with scanning button
-                    OutlinedTextField(
-                        value = barcodeCode,
-                        onValueChange = { barcodeCode = it },
-                        label = { Text(s.barcodeLabel) },
-                        singleLine = true,
-                        trailingIcon = {
-                            IconButton(onClick = { triggerBarcodeScanner() }) {
-                                Icon(Icons.Default.QrCode, contentDescription = s.scanBarcode)
-                            }
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFFF2F2F2),
-                            unfocusedContainerColor = Color(0xFFF9F9F9)
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { focusState ->
-                                if (focusState.isFocused) {
-                                    barcodeCode = barcodeCode.copy(selection = TextRange(0, barcodeCode.text.length))
+                    fun fieldModifier(myFocus: FocusRequester, nextFocus: FocusRequester?, fieldName: String): Modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(myFocus)
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                when(fieldName) {
+                                    "code" -> itemCode = itemCode.copy(selection = TextRange(0, itemCode.text.length))
+                                    "barcode" -> itemBarcode = itemBarcode.copy(selection = TextRange(0, itemBarcode.text.length))
+                                    "comment" -> comment = comment.copy(selection = TextRange(0, comment.text.length))
                                 }
                             }
+                        }
+                        .onKeyEvent { keyEvent ->
+                            if (keyEvent.key == Key.Tab || keyEvent.key == Key.Enter) {
+                                if (nextFocus != null) nextFocus.requestFocus() else focusManager.clearFocus()
+                                true
+                            } else false
+                        }
+
+                    // 1. Kodas field
+                    OutlinedTextField(
+                        value = itemCode, onValueChange = { itemCode = it }, label = { Text(s.groupFieldCode) }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next), keyboardActions = KeyboardActions(onNext = { barcodeFocus.requestFocus() }),
+                        trailingIcon = { IconButton(onClick = { triggerBarcodeScanner("code") }) { Icon(Icons.Default.QrCode, s.scanBarcode) } },
+                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
+                        modifier = fieldModifier(codeFocus, barcodeFocus, "code")
                     )
 
-                    // Comments input
+                    // 2. Barkodas field
                     OutlinedTextField(
-                        value = comment,
-                        onValueChange = { comment = it },
-                        label = { Text(s.commentLabel) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFFF2F2F2),
-                            unfocusedContainerColor = Color(0xFFF9F9F9)
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { focusState ->
-                                if (focusState.isFocused) {
-                                    comment = comment.copy(selection = TextRange(0, comment.text.length))
-                                }
-                            }
+                        value = itemBarcode, onValueChange = { itemBarcode = it }, label = { Text(s.groupFieldBarcode) }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next), keyboardActions = KeyboardActions(onNext = { commentFocus.requestFocus() }),
+                        trailingIcon = { IconButton(onClick = { triggerBarcodeScanner("barcode") }) { Icon(Icons.Default.QrCode, s.scanBarcode) } },
+                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
+                        modifier = fieldModifier(barcodeFocus, commentFocus, "barcode")
+                    )
+
+                    // 3. Comment field
+                    OutlinedTextField(
+                        value = comment, onValueChange = { comment = it }, label = { Text(s.commentLabel) }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
+                        modifier = fieldModifier(commentFocus, null, "comment")
                     )
                 }
             }
 
-            // Card 2: Switches and Configuration options
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = s.defaultStates,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(text = s.defaultStates, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(s.addCodeToPic, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Spacer(modifier = Modifier.width(16.dp))
                         Switch(checked = addCode, onCheckedChange = { addCode = it })
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(s.addCommentToPic, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Spacer(modifier = Modifier.width(16.dp))
                         Switch(checked = addComment, onCheckedChange = { addComment = it })
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(s.addDateToPic, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Spacer(modifier = Modifier.width(16.dp))
                         Switch(checked = addDate, onCheckedChange = { addDate = it })
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(s.printBarcodeOpt, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Spacer(modifier = Modifier.width(16.dp))
                         Switch(checked = printBarcode, onCheckedChange = { printBarcode = it })
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(100.dp)) // Padding to scroll above navigation bar
+            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 }

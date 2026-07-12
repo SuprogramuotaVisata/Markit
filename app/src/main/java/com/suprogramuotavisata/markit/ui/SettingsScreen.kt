@@ -534,6 +534,28 @@ fun SettingsScreen() {
 
                 // Dynamic Input forms depending on Selected Printer Type
                 if (printerType == "network") {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                "Brother PT-P750W Wi-Fi patarimas:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "1. Paspauskite Wi-Fi mygtuką ant spausdintuvo kol užsidegs mėlyna lemputė.\n" +
+                                "2. Telefono Wi-Fi sąraše prisijunkite prie tinklo 'DIRECT-*****_PT-P750W'.\n" +
+                                "3. Slaptažodis dažniausiai yra '00000000' (8 nuliai).\n" +
+                                "4. Naudokite IP: 192.168.118.1 ir Port: 9100.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     OutlinedTextField(
                         value = printerIp,
                         onValueChange = {
@@ -773,7 +795,7 @@ fun SettingsScreen() {
                     .apply()
                     
                 showNfcDialog = false
-                Toast.makeText(context, "NFC: Brother PT-P750W sėkmingai susietas!", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "NFC: Nustatymai gauti! SVARBU: Dabar rankiniu būdu prisijunkite prie spausdintuvo Wi-Fi tinklo savo telefono nustatymuose.", Toast.LENGTH_LONG).show()
             }
         }
         onDispose {
@@ -826,7 +848,7 @@ fun SettingsScreen() {
                                 .apply()
                                 
                             showNfcDialog = false
-                            Toast.makeText(context, "NFC: Brother PT-P750W sujungtas sekmingai!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "NFC: Brother PT-P750W sukonfigūruotas! Prisijunkite prie jo Wi-Fi.", Toast.LENGTH_LONG).show()
                         },
                         modifier = Modifier.padding(top = 8.dp)
                     ) {
