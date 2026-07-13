@@ -115,8 +115,9 @@ object BrotherPrinterDriver {
             for (x in 0 until scaled.width) {
                 val pixel = scaled.getPixel(x, y)
                 if (Color.red(pixel) < 180) { 
-                    val byteIdx = x / 8
-                    val bitIdx = 7 - (x % 8)
+                    val mirroredX = (scaledWidth - 1) - x
+                    val byteIdx = mirroredX / 8
+                    val bitIdx = 7 - (mirroredX % 8)
                     line[byteIdx] = (line[byteIdx].toInt() or (1 shl bitIdx)).toByte()
                     blackPixels++
                     hasBlack = true
@@ -274,8 +275,9 @@ object BrotherPrinterDriver {
             for (x in 0 until scaled.width) {
                 val pixel = scaled.getPixel(x, y)
                 if (Color.red(pixel) < 180) { 
-                    val byteIdx = x / 8
-                    val bitIdx = 7 - (x % 8)
+                    val mirroredX = (scaledWidth - 1) - x
+                    val byteIdx = mirroredX / 8
+                    val bitIdx = 7 - (mirroredX % 8)
                     line[byteIdx] = (line[byteIdx].toInt() or (1 shl bitIdx)).toByte()
                     blackPixels++
                     hasBlack = true

@@ -123,6 +123,13 @@ interface AppStrings {
     val migratingDesc: String
     val migrationSuccess: String
     val migrationError: String
+
+    // Label rotation keys
+    val labelRotationLabel: String
+    val labelRotation0: String
+    val labelRotation90: String
+    val labelRotation180: String
+    val labelRotation270: String
 }
 
 object EnStrings : AppStrings {
@@ -240,6 +247,13 @@ object EnStrings : AppStrings {
     override val migratingDesc = "Please wait while we migrate your data between local storage and Google Drive..."
     override val migrationSuccess = "Migration completed successfully!"
     override val migrationError = "Migration failed: "
+
+    // Label rotation values
+    override val labelRotationLabel = "Label Layout Rotation"
+    override val labelRotation0 = "0° (Vertical / Default)"
+    override val labelRotation90 = "90° (Horizontal)"
+    override val labelRotation180 = "180° (Vertical Inverted)"
+    override val labelRotation270 = "270° (Horizontal Inverted)"
 }
 
 // Proper Lithuanian Strings (Grammatically correct with standard accented characters)
@@ -358,6 +372,13 @@ object LtStrings : AppStrings {
     override val migratingDesc = "Prašome palaukti, perkeliami duomenys tarp vietinės saugyklos ir Google Drive..."
     override val migrationSuccess = "Turinys sėkmingai perkeltas!"
     override val migrationError = "Turinio perkėlimo klaida: "
+
+    // Label rotation values
+    override val labelRotationLabel = "Lipduko pasukimas"
+    override val labelRotation0 = "0° (Vertikalus / Numatytasis)"
+    override val labelRotation90 = "90° (Horizontalus)"
+    override val labelRotation180 = "180° (Vertikalus apverstas)"
+    override val labelRotation270 = "270° (Horizontalus apverstas)"
 }
 
 val LocalAppStrings = staticCompositionLocalOf<AppStrings> { EnStrings }

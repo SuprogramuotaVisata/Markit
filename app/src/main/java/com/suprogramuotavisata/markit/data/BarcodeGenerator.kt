@@ -209,8 +209,13 @@ object BarcodeGenerator {
         name: String,
         code: String,
         barcode: String?,
-        description: String?
+        description: String?,
+        rotation: Int = 0
     ): Bitmap {
+        if (rotation == 90 || rotation == 270) {
+            return generateHorizontalLabel(name, code, barcode, description, rotation)
+        }
+
         val width = 128 // Target pins for 24mm tape at 180dpi
         val padding = 4
         val textSpacing = 10
@@ -297,6 +302,117 @@ object BarcodeGenerator {
             canvas.drawText(effectiveBarcode, (width / 2).toFloat(), currentY, labelPaint)
         }
 
+        if (rotation == 180) {
+            val matrix = android.graphics.Matrix().apply { postRotate(180f) }
+            return Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+        }
+
         return result
+    }
+
+    private fun generateHorizontalLabel(
+        name: String,
+        code: String,
+        barcode: String?,
+        description: String?,
+        rotation: Int
+    ): Bitmap {
+        val height = 128
+        val padding = 8
+        val spacing = 12
+
+        val titlePaint = TextPaint().apply {
+            color = Color.BLACK
+            textSize = 20f
+            isAntiAlias = true
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        
+        val contentPaint = TextPaint().apply {
+            color = Color.BLACK
+            textSize = 15f
+            isAntiAlias = true
+        }
+
+        // Measure text column width
+        val nameText = name
+        val codeText = "Kodas: $code"
+        val descText = if (!description.isNullOrBlank()) "Aprasymas: $description" else ""
+
+        val maxTextWidth = maxOf(
+            titlePaint.measureText(nameText).toInt(),
+            contentPaint.measureText(codeText).toInt(),
+            if (descText.isNotEmpty()) contentPaint.measureText(descText).toInt() else 0
+        )
+        val textWidth = maxTextWidth.coerceIn(150, 300)
+
+        // Measure barcode
+        val barcodeWidth = 150
+        val barcodeTargetHeight = 50
+        val effectiveBarcode = barcode ?: code
+        var barcodeBitmap: Bitmap? = null
+        if (effectiveBarcode.isNotBlank()) {
+            barcodeBitmap = generateBarcode(TranslationManager.stripAccents(effectiveBarcode), barcodeWidth, barcodeTargetHeight)
+        }
+
+        // Calculate total canvas width
+        val totalWidth = padding + textWidth + spacing + barcodeWidth + padding
+        
+        val result = Bitmap.createBitmap(totalWidth, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(result)
+        canvas.drawColor(Color.WHITE)
+
+        // Draw Text Column (left side)
+        val nameLayout = StaticLayout.Builder.obtain(nameText, 0, nameText.length, titlePaint, textWidth).build()
+        val codeLayout = StaticLayout.Builder.obtain(codeText, 0, codeText.length, contentPaint, textWidth).build()
+        val descLayout = if (descText.isNotEmpty()) {
+            StaticLayout.Builder.obtain(descText, 0, descText.length, contentPaint, textWidth).build()
+        } else null
+
+        // Center the text block vertically
+        val textBlockHeight = nameLayout.height + 4 + codeLayout.height + (if (descLayout != null) 4 + descLayout.height else 0)
+        var textY = ((height - textBlockHeight) / 2).toFloat().coerceAtLeast(padding.toFloat())
+
+        canvas.save()
+        canvas.translate(padding.toFloat(), textY)
+        nameLayout.draw(canvas)
+        canvas.restore()
+        textY += nameLayout.height + 4
+
+        canvas.save()
+        canvas.translate(padding.toFloat(), textY)
+        codeLayout.draw(canvas)
+        canvas.restore()
+        textY += codeLayout.height + 4
+
+        if (descLayout != null) {
+            canvas.save()
+            canvas.translate(padding.toFloat(), textY)
+            descLayout.draw(canvas)
+            canvas.restore()
+        }
+
+        // Draw Barcode Column (right side)
+        if (barcodeBitmap != null) {
+            val barcodeX = padding + textWidth + spacing
+            val barcodeBlockHeight = barcodeTargetHeight + 4 + 14 // barcode + label under it
+            val barcodeY = ((height - barcodeBlockHeight) / 2).toFloat().coerceAtLeast(padding.toFloat())
+
+            canvas.drawBitmap(barcodeBitmap, barcodeX.toFloat(), barcodeY, null)
+
+            val labelPaint = Paint().apply {
+                color = Color.BLACK
+                textSize = 12f
+                isAntiAlias = true
+                textAlign = Paint.Align.CENTER
+            }
+            val labelX = barcodeX + (barcodeWidth / 2)
+            val labelY = barcodeY + barcodeTargetHeight + 14
+            canvas.drawText(effectiveBarcode, labelX.toFloat(), labelY, labelPaint)
+        }
+
+        // Rotate final result
+        val matrix = android.graphics.Matrix().apply { postRotate(rotation.toFloat()) }
+        return Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
     }
 }

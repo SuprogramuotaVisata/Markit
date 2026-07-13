@@ -134,11 +134,16 @@ object PrintManager {
      * Prints a full group label.
      */
     fun printGroupLabel(context: Context, group: ProductGroup) {
+        val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
+        val rotationStr = sharedPrefs.getString("label_rotation", "0") ?: "0"
+        val rotation = rotationStr.toIntOrNull() ?: 0
+
         val labelBitmap = BarcodeGenerator.generateLabel(
             group.name,
             group.code,
             group.barcode,
-            group.description
+            group.description,
+            rotation
         )
         printBarcode(context, group.name, labelBitmap)
     }
@@ -147,11 +152,16 @@ object PrintManager {
      * Prints a full item label.
      */
     fun printItemLabel(context: Context, groupName: String, code: String, barcode: String?, comment: String?) {
+        val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
+        val rotationStr = sharedPrefs.getString("label_rotation", "0") ?: "0"
+        val rotation = rotationStr.toIntOrNull() ?: 0
+
         val labelBitmap = BarcodeGenerator.generateLabel(
             groupName,
             code,
             barcode,
-            comment
+            comment,
+            rotation
         )
         printBarcode(context, code, labelBitmap)
     }

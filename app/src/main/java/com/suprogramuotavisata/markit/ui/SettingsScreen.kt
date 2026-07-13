@@ -92,6 +92,7 @@ fun SettingsScreen() {
     var printerIp by remember { mutableStateOf("") }
     var printerPort by remember { mutableStateOf("9100") }
     var printerBt by remember { mutableStateOf("") }
+    var labelRotation by remember { mutableStateOf("0") }
 
     // Active storage configuration & migration state
     var activeStorageMode by remember { mutableStateOf("local") }
@@ -117,6 +118,7 @@ fun SettingsScreen() {
         printerIp = sharedPrefs.getString("printer_ip", "") ?: ""
         printerPort = sharedPrefs.getString("printer_port", "9100") ?: "9100"
         printerBt = sharedPrefs.getString("printer_bt", "") ?: ""
+        labelRotation = sharedPrefs.getString("label_rotation", "0") ?: "0"
         
         activeStorageMode = sharedPrefs.getString("active_storage_mode", "local") ?: "local"
     }
@@ -716,7 +718,49 @@ fun SettingsScreen() {
                     }
                 }
 
+                // Label Layout Rotation Selection
                 Spacer(modifier = Modifier.height(8.dp))
+                Text(s.labelRotationLabel, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    FilterChip(
+                        selected = labelRotation == "0",
+                        onClick = {
+                            labelRotation = "0"
+                            sharedPrefs.edit().putString("label_rotation", "0").apply()
+                        },
+                        label = { Text(s.labelRotation0) }
+                    )
+                    FilterChip(
+                        selected = labelRotation == "90",
+                        onClick = {
+                            labelRotation = "90"
+                            sharedPrefs.edit().putString("label_rotation", "90").apply()
+                        },
+                        label = { Text(s.labelRotation90) }
+                    )
+                    FilterChip(
+                        selected = labelRotation == "180",
+                        onClick = {
+                            labelRotation = "180"
+                            sharedPrefs.edit().putString("label_rotation", "180").apply()
+                        },
+                        label = { Text(s.labelRotation180) }
+                    )
+                    FilterChip(
+                        selected = labelRotation == "270",
+                        onClick = {
+                            labelRotation = "270"
+                            sharedPrefs.edit().putString("label_rotation", "270").apply()
+                        },
+                        label = { Text(s.labelRotation270) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = {
