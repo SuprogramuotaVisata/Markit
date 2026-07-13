@@ -130,6 +130,10 @@ interface AppStrings {
     val labelRotation90: String
     val labelRotation180: String
     val labelRotation270: String
+
+    // QR-only printing keys
+    val printQrOnlyLabel: String
+    val printQrOnlyDesc: String
 }
 
 object EnStrings : AppStrings {
@@ -254,6 +258,10 @@ object EnStrings : AppStrings {
     override val labelRotation90 = "90° (Horizontal)"
     override val labelRotation180 = "180° (Vertical Inverted)"
     override val labelRotation270 = "270° (Horizontal Inverted)"
+
+    // QR-only printing values
+    override val printQrOnlyLabel = "Print QR Code Only"
+    override val printQrOnlyDesc = "Pack all fields (Name, Code, Barcode, Description) into a single QR code and print ONLY the QR code."
 }
 
 // Proper Lithuanian Strings (Grammatically correct with standard accented characters)
@@ -379,6 +387,10 @@ object LtStrings : AppStrings {
     override val labelRotation90 = "90° (Horizontalus)"
     override val labelRotation180 = "180° (Vertikalus apverstas)"
     override val labelRotation270 = "270° (Horizontalus apverstas)"
+
+    // QR-only printing values
+    override val printQrOnlyLabel = "Spausdinti tik QR kodą"
+    override val printQrOnlyDesc = "Supakuoti visus laukus (Pavadinimą, Kodą, Barkodą, Aprašymą) į vieną QR kodą ir spausdinti TIK QR kodą."
 }
 
 val LocalAppStrings = staticCompositionLocalOf<AppStrings> { EnStrings }

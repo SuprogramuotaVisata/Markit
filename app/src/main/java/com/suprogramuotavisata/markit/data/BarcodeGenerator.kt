@@ -43,6 +43,31 @@ object BarcodeGenerator {
     }
 
     /**
+     * Generates a 2D QR Code Bitmap from the given string.
+     */
+    fun generateQrCode(text: String, width: Int, height: Int): Bitmap? {
+        if (text.isBlank()) return null
+        try {
+            val bitMatrix: BitMatrix = MultiFormatWriter().encode(
+                text,
+                BarcodeFormat.QR_CODE,
+                width,
+                height
+            )
+            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            for (x in 0 until width) {
+                for (y in 0 until height) {
+                    bmp.setPixel(x, y, if (bitMatrix.get(x, y)) Color.BLACK else Color.WHITE)
+                }
+            }
+            return bmp
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
+    }
+
+    /**
      * Overlays barcode, date, and comments onto the captured photo in the bottom-right corner.
      */
     fun createOverlayPhoto(
@@ -210,14 +235,18 @@ object BarcodeGenerator {
         code: String,
         barcode: String?,
         description: String?,
-        rotation: Int = 0
+        rotation: Int = 0,
+        qrOnly: Boolean = false
     ): Bitmap {
+        if (qrOnly) {
+            return generateQrOnlyLabel(name, code, barcode, description, rotation)
+        }
         if (rotation == 90 || rotation == 270) {
             return generateHorizontalLabel(name, code, barcode, description, rotation)
         }
 
         val width = 128 // Target pins for 24mm tape at 180dpi
-        val padding = 4
+        val padding = 2 // Decreased padding to maximize barcode width for scan-ability
         val textSpacing = 10
         
         val titlePaint = TextPaint().apply {
@@ -248,10 +277,10 @@ object BarcodeGenerator {
         var barcodeHeight = 0
         val effectiveBarcode = barcode ?: code
         if (effectiveBarcode.isNotBlank()) {
-            // Generate barcode to fit the 128px width
+            // Generate barcode to fit the 124px width
             barcodeBitmap = generateBarcode(TranslationManager.stripAccents(effectiveBarcode), width - 2 * padding, 60)
             if (barcodeBitmap != null) {
-                barcodeHeight = 60 + textSpacing + 20 // barcode + spacing + code label
+                barcodeHeight = 60 + textSpacing + 25 // barcode + spacing + code label height with spacing
             }
         }
 
@@ -291,7 +320,7 @@ object BarcodeGenerator {
         // Draw Barcode
         if (barcodeBitmap != null) {
             canvas.drawBitmap(barcodeBitmap, padding.toFloat(), currentY, null)
-            currentY += 60 + textSpacing
+            currentY += 60 // Barcode height is 60
             
             val labelPaint = Paint().apply {
                 color = Color.BLACK
@@ -299,7 +328,10 @@ object BarcodeGenerator {
                 isAntiAlias = true
                 textAlign = Paint.Align.CENTER
             }
-            canvas.drawText(effectiveBarcode, (width / 2).toFloat(), currentY, labelPaint)
+            // Use FontMetrics ascent to position the text correctly below the barcode without overlapping
+            val fontMetrics = labelPaint.fontMetrics
+            val labelY = currentY + textSpacing - fontMetrics.ascent
+            canvas.drawText(effectiveBarcode, (width / 2).toFloat(), labelY, labelPaint)
         }
 
         if (rotation == 180) {
@@ -346,9 +378,9 @@ object BarcodeGenerator {
         )
         val textWidth = maxTextWidth.coerceIn(150, 300)
 
-        // Measure barcode
-        val barcodeWidth = 150
-        val barcodeTargetHeight = 50
+        // Measure barcode - Enlarge to 300px for highly reliable scan-ability in horizontal view
+        val barcodeWidth = 300
+        val barcodeTargetHeight = 60
         val effectiveBarcode = barcode ?: code
         var barcodeBitmap: Bitmap? = null
         if (effectiveBarcode.isNotBlank()) {
@@ -395,7 +427,7 @@ object BarcodeGenerator {
         // Draw Barcode Column (right side)
         if (barcodeBitmap != null) {
             val barcodeX = padding + textWidth + spacing
-            val barcodeBlockHeight = barcodeTargetHeight + 4 + 14 // barcode + label under it
+            val barcodeBlockHeight = barcodeTargetHeight + spacing + 14 // barcode + label under it
             val barcodeY = ((height - barcodeBlockHeight) / 2).toFloat().coerceAtLeast(padding.toFloat())
 
             canvas.drawBitmap(barcodeBitmap, barcodeX.toFloat(), barcodeY, null)
@@ -407,12 +439,45 @@ object BarcodeGenerator {
                 textAlign = Paint.Align.CENTER
             }
             val labelX = barcodeX + (barcodeWidth / 2)
-            val labelY = barcodeY + barcodeTargetHeight + 14
+            // Use FontMetrics to place text cleanly under horizontal barcode
+            val fontMetrics = labelPaint.fontMetrics
+            val labelY = barcodeY + barcodeTargetHeight + spacing - fontMetrics.ascent
             canvas.drawText(effectiveBarcode, labelX.toFloat(), labelY, labelPaint)
         }
 
         // Rotate final result
         val matrix = android.graphics.Matrix().apply { postRotate(rotation.toFloat()) }
         return Bitmap.createBitmap(result, 0, 0, result.width, result.height, matrix, true)
+    }
+
+    private fun generateQrOnlyLabel(
+        name: String,
+        code: String,
+        barcode: String?,
+        description: String?,
+        rotation: Int
+    ): Bitmap {
+        val size = 128
+        val sb = java.lang.StringBuilder()
+        sb.append("Pavadinimas: ").append(name)
+        sb.append("\nKodas: ").append(code)
+        if (!barcode.isNullOrBlank()) {
+            sb.append("\nBarkodas: ").append(barcode)
+        }
+        if (!description.isNullOrBlank()) {
+            sb.append("\nAprasymas: ").append(description)
+        }
+
+        val qrText = sb.toString()
+        val qrBitmap = generateQrCode(qrText, size, size) ?: Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
+            val canvas = Canvas(this)
+            canvas.drawColor(Color.WHITE)
+        }
+
+        if (rotation != 0) {
+            val matrix = android.graphics.Matrix().apply { postRotate(rotation.toFloat()) }
+            return Bitmap.createBitmap(qrBitmap, 0, 0, qrBitmap.width, qrBitmap.height, matrix, true)
+        }
+        return qrBitmap
     }
 }

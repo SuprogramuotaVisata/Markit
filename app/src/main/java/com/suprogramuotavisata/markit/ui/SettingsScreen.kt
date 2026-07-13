@@ -93,6 +93,7 @@ fun SettingsScreen() {
     var printerPort by remember { mutableStateOf("9100") }
     var printerBt by remember { mutableStateOf("") }
     var labelRotation by remember { mutableStateOf("0") }
+    var printQrOnly by remember { mutableStateOf(false) }
 
     // Active storage configuration & migration state
     var activeStorageMode by remember { mutableStateOf("local") }
@@ -119,6 +120,7 @@ fun SettingsScreen() {
         printerPort = sharedPrefs.getString("printer_port", "9100") ?: "9100"
         printerBt = sharedPrefs.getString("printer_bt", "") ?: ""
         labelRotation = sharedPrefs.getString("label_rotation", "0") ?: "0"
+        printQrOnly = sharedPrefs.getBoolean("print_qr_only", false)
         
         activeStorageMode = sharedPrefs.getString("active_storage_mode", "local") ?: "local"
     }
@@ -718,8 +720,29 @@ fun SettingsScreen() {
                     }
                 }
 
+                // QR-only print switch
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(s.printQrOnlyLabel, fontWeight = FontWeight.SemiBold)
+                        Text(s.printQrOnlyDesc, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Switch(
+                        checked = printQrOnly,
+                        onCheckedChange = {
+                            printQrOnly = it
+                            sharedPrefs.edit().putBoolean("print_qr_only", it).apply()
+                        }
+                    )
+                }
+
                 // Label Layout Rotation Selection
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(s.labelRotationLabel, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),

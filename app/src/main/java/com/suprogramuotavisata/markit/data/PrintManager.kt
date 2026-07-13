@@ -137,13 +137,15 @@ object PrintManager {
         val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
         val rotationStr = sharedPrefs.getString("label_rotation", "0") ?: "0"
         val rotation = rotationStr.toIntOrNull() ?: 0
+        val qrOnly = sharedPrefs.getBoolean("print_qr_only", false)
 
         val labelBitmap = BarcodeGenerator.generateLabel(
             group.name,
             group.code,
             group.barcode,
             group.description,
-            rotation
+            rotation,
+            qrOnly
         )
         printBarcode(context, group.name, labelBitmap)
     }
@@ -155,13 +157,15 @@ object PrintManager {
         val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
         val rotationStr = sharedPrefs.getString("label_rotation", "0") ?: "0"
         val rotation = rotationStr.toIntOrNull() ?: 0
+        val qrOnly = sharedPrefs.getBoolean("print_qr_only", false)
 
         val labelBitmap = BarcodeGenerator.generateLabel(
             groupName,
             code,
             barcode,
             comment,
-            rotation
+            rotation,
+            qrOnly
         )
         printBarcode(context, code, labelBitmap)
     }
