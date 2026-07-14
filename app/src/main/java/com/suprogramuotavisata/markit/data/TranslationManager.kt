@@ -41,6 +41,11 @@ interface AppStrings {
     val addCommentToPic: String
     val addDateToPic: String
     val printBarcodeOpt: String
+    val printCopiesLabel: String
+    val promptForCopiesLabel: String
+    val promptForCopiesDesc: String
+    val marginStartLabel: String
+    val marginEndLabel: String
     val captureBtn: String
     val scannedCode: String
     val scanFailed: String
@@ -134,6 +139,23 @@ interface AppStrings {
     // QR-only printing keys
     val printQrOnlyLabel: String
     val printQrOnlyDesc: String
+    val printerAutoCutLabel: String
+    val printerAutoCutDesc: String
+    val printerTapeWidthLabel: String
+    val printerTapeWidthDesc: String
+    val printerBrandLabel: String
+    val printerModelLabel: String
+    val posPaperWidthLabel: String
+    val posPaperWidthDesc: String
+    val groupCloudSettings: String
+    val groupCameraSettings: String
+    val groupPrinterSettings: String
+    val settingsApiUrlLabel: String
+    val settingsApiSendBtn: String
+    val settingsApiGetBtn: String
+    val settingsApiSuccess: String
+    val settingsApiSendSuccess: String
+    val settingsApiError: String
 }
 
 object EnStrings : AppStrings {
@@ -168,7 +190,12 @@ object EnStrings : AppStrings {
     override val addCodeToPic = "Add code to photo"
     override val addCommentToPic = "Add comment to photo"
     override val addDateToPic = "Add current date"
-    override val printBarcodeOpt = "Automatically print barcode"
+    override val printBarcodeOpt = "Auto print"
+    override val printCopiesLabel = "Copies"
+    override val promptForCopiesLabel = "Keisti kopijų skaičių"
+    override val promptForCopiesDesc = "Prompt for copies count before printing each label"
+    override val marginStartLabel = "Start margin"
+    override val marginEndLabel = "End margin"
     override val captureBtn = "Capture"
     override val scannedCode = "Scanned code"
     override val scanFailed = "Scan failed"
@@ -262,6 +289,23 @@ object EnStrings : AppStrings {
     // QR-only printing values
     override val printQrOnlyLabel = "Print QR Code Only"
     override val printQrOnlyDesc = "Pack all fields (Name, Code, Barcode, Description) into a single QR code and print ONLY the QR code."
+    override val printerAutoCutLabel = "Auto-Cut"
+    override val printerAutoCutDesc = "Automatically cut tape after printing each label"
+    override val printerTapeWidthLabel = "Tape Width"
+    override val printerTapeWidthDesc = "Select the physical tape width loaded in your printer"
+    override val printerBrandLabel = "Manufacturer"
+    override val printerModelLabel = "Model"
+    override val posPaperWidthLabel = "POS Paper Width"
+    override val posPaperWidthDesc = "Select physical paper width for the ESC/POS thermal printer"
+    override val groupCloudSettings = "Cloud Storage & Backups"
+    override val groupCameraSettings = "Camera default configuration"
+    override val groupPrinterSettings = "Printer configuration"
+    override val settingsApiUrlLabel = "Settings API URL"
+    override val settingsApiSendBtn = "Send Settings"
+    override val settingsApiGetBtn = "Get Settings"
+    override val settingsApiSuccess = "Settings updated successfully!"
+    override val settingsApiSendSuccess = "Settings sent successfully!"
+    override val settingsApiError = "Error: "
 }
 
 // Proper Lithuanian Strings (Grammatically correct with standard accented characters)
@@ -297,7 +341,12 @@ object LtStrings : AppStrings {
     override val addCodeToPic = "Pridėti kodą"
     override val addCommentToPic = "Pridėti komentarą / aprašymą"
     override val addDateToPic = "Pridėti dabartinę datą"
-    override val printBarcodeOpt = "Automatiškai spausdinti barkodą"
+    override val printBarcodeOpt = "Auto spausdinimas"
+    override val printCopiesLabel = "Kopijų sk."
+    override val promptForCopiesLabel = "Keisti kopijų skaičių"
+    override val promptForCopiesDesc = "Prieš spausdinimą paklausti, kiek kopijų norite spausdinti"
+    override val marginStartLabel = "Pradinė paraštė"
+    override val marginEndLabel = "Galinė paraštė"
     override val captureBtn = "Užfiksuoti"
     override val scannedCode = "Nuskaitytas kodas"
     override val scanFailed = "Nepavyko nuskaityti"
@@ -391,6 +440,23 @@ object LtStrings : AppStrings {
     // QR-only printing values
     override val printQrOnlyLabel = "Spausdinti tik QR kodą"
     override val printQrOnlyDesc = "Supakuoti visus laukus (Pavadinimą, Kodą, Barkodą, Aprašymą) į vieną QR kodą ir spausdinti TIK QR kodą."
+    override val printerAutoCutLabel = "Auto spaudinio kirpimas"
+    override val printerAutoCutDesc = "Automatiškai nukirpti juostelę po kiekvieno atspausdinto lipduko"
+    override val printerTapeWidthLabel = "Juostelės plotis"
+    override val printerTapeWidthDesc = "Pasirinkite į spausdintuvą įdėtos juostelės plotį"
+    override val printerBrandLabel = "Spausdintuvo gamintojas"
+    override val printerModelLabel = "Modelis"
+    override val posPaperWidthLabel = "POS popieriaus plotis"
+    override val posPaperWidthDesc = "Pasirinkite POS spausdintuvo popieriaus plotį"
+    override val groupCloudSettings = "Debesies atsarginės kopijos ir saugykla"
+    override val groupCameraSettings = "Numatytieji kameros nustatymai"
+    override val groupPrinterSettings = "Spausdintuvo konfigūravimas"
+    override val settingsApiUrlLabel = "Nustatymų API URL"
+    override val settingsApiSendBtn = "Siųsti nustatymus"
+    override val settingsApiGetBtn = "Gauti nustatymus"
+    override val settingsApiSuccess = "Nustatymai sėkmingai atnaujinti!"
+    override val settingsApiSendSuccess = "Nustatymai sėkmingai išsiųsti!"
+    override val settingsApiError = "Klaida: "
 }
 
 val LocalAppStrings = staticCompositionLocalOf<AppStrings> { EnStrings }

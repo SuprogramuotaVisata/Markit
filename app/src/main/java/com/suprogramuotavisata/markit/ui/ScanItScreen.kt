@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.NoPhotography
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -98,6 +99,8 @@ fun ScanItScreen() {
     var addComment by remember { mutableStateOf(true) }
     var addDate by remember { mutableStateOf(true) }
     var printBarcode by remember { mutableStateOf(false) }
+    var printQrOnly by remember { mutableStateOf(false) }
+    var isCameraExpanded by remember { mutableStateOf(false) }
 
     // Database state
     var groups by remember { mutableStateOf<List<ProductGroup>>(emptyList()) }
@@ -126,6 +129,7 @@ fun ScanItScreen() {
         addComment = sharedPrefs.getBoolean("default_add_comments", true)
         addDate = sharedPrefs.getBoolean("default_add_date", true)
         printBarcode = sharedPrefs.getBoolean("default_print_barcode", false)
+        printQrOnly = sharedPrefs.getBoolean("print_qr_only", false)
 
         withContext(Dispatchers.IO) {
             groups = dbHelper.getAllGroups()
@@ -159,9 +163,9 @@ fun ScanItScreen() {
     // Dropdown state
     var isDropdownExpanded by remember { mutableStateOf(false) }
 
-    // Bind camera lifecycle
-    LaunchedEffect(hasCameraPermission) {
-        if (hasCameraPermission) {
+    // Bind camera lifecycle only when camera is expanded
+    LaunchedEffect(hasCameraPermission, isCameraExpanded) {
+        if (hasCameraPermission && isCameraExpanded) {
             val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
@@ -174,6 +178,11 @@ fun ScanItScreen() {
                     Log.e("ScanItScreen", "Camera binding failed", e)
                 }
             }, mainExecutor)
+        } else {
+            try {
+                val cameraProvider = ProcessCameraProvider.getInstance(context).get()
+                cameraProvider.unbindAll()
+            } catch (e: Exception) {}
         }
     }
 
@@ -224,6 +233,15 @@ fun ScanItScreen() {
                                 bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
                             }
 
+                            // Load camera brightness and contrast settings from SharedPreferences
+                            val cameraPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
+                            val brightness = cameraPrefs.getFloat("camera_brightness", 0f)
+                            val contrast = cameraPrefs.getFloat("camera_contrast", 1f)
+
+                            if (brightness != 0f || contrast != 1f) {
+                                bitmap = adjustBitmap(bitmap, brightness, contrast)
+                            }
+
                             // Auto-detect barcode on capture region
                             val detectedBarcode = suspendCancellableCoroutine<String?> { cont ->
                                 try {
@@ -259,7 +277,8 @@ fun ScanItScreen() {
                                 date = currentDate,
                                 addCode = addCode,
                                 addComment = addComment,
-                                addDate = addDate
+                                addDate = addDate,
+                                qrOnly = printQrOnly
                             )
 
                             val photosDir = File(context.filesDir, "photos").apply { if (!exists()) mkdirs() }
@@ -313,6 +332,7 @@ fun ScanItScreen() {
                                 itemBarcode = TextFieldValue("")
                                 comment = TextFieldValue("")
                                 isCapturing = false
+                                isCameraExpanded = false // Collapse camera after saving
                                 codeFocus.requestFocus()
                             }
                         } catch (e: Exception) {
@@ -332,123 +352,256 @@ fun ScanItScreen() {
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(modifier = Modifier.fillMaxWidth().height(300.dp).padding(16.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black)) {
-            if (hasCameraPermission) {
-                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-                if (groups.isNotEmpty()) {
-                    Button(onClick = { captureAndSaveImage() }, enabled = !isCapturing && selectedGroup != null, shape = RoundedCornerShape(50), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)) {
-                        if (isCapturing) CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
-                        else { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.PhotoCamera, null); Spacer(modifier = Modifier.width(8.dp)); Text(s.captureBtn, fontWeight = FontWeight.Bold) } }
-                    }
+    fun saveWithoutPhoto() {
+        if (selectedGroup == null) {
+            Toast.makeText(context, s.selectGroupFirst, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (isCapturing) return
+        isCapturing = true
+
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                val currentCode = itemCode.text.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString().take(8).uppercase()
+                
+                val finalBarcode = if (itemBarcode.text.isNotBlank()) {
+                    itemBarcode.text
                 } else {
-                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).padding(24.dp), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Info, null, tint = Color.White, modifier = Modifier.size(48.dp))
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(s.createGroupFirstPrompt, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                        }
+                    null
+                }
+
+                val itemId = dbHelper.createItem(
+                    groupId = selectedGroup!!.id,
+                    code = currentCode,
+                    comment = comment.text.trim().takeIf { it.isNotBlank() },
+                    date = currentDate,
+                    localPhotoPath = null,
+                    driveFileId = null,
+                    barcode = finalBarcode
+                )
+
+                if (printBarcode) {
+                    withContext(Dispatchers.Main) {
+                        PrintManager.printItemLabel(
+                            context = context,
+                            groupName = selectedGroup!!.name,
+                            code = currentCode,
+                            barcode = finalBarcode,
+                            comment = comment.text.trim().takeIf { it.isNotBlank() }
+                        )
                     }
                 }
-            } else {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
-                        Text("Kamerai reikalingas leidimas", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("Suteikti leidima") }
+
+                if (itemId > 0) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Išsaugota (be nuotraukos)!", Toast.LENGTH_SHORT).show()
                     }
+                }
+
+                withContext(Dispatchers.Main) {
+                    itemCode = TextFieldValue(UUID.randomUUID().toString().take(8).uppercase())
+                    itemBarcode = TextFieldValue("")
+                    comment = TextFieldValue("")
+                    isCapturing = false
+                    codeFocus.requestFocus()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "${s.dbSaveError}: ${e.message}", Toast.LENGTH_LONG).show()
+                    isCapturing = false
                 }
             }
         }
+    }
 
-        Column(modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (isGroupsLoading) CircularProgressIndicator()
-                    else if (groups.isEmpty()) Text(text = s.noGroupsTitle, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                    else {
-                        ExposedDropdownMenuBox(expanded = isDropdownExpanded, onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }) {
-                            OutlinedTextField(
-                                readOnly = true, value = selectedGroup?.name ?: s.selectGroup, onValueChange = {}, label = { Text(s.groupLabel) },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
-                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
-                                modifier = Modifier.fillMaxWidth().menuAnchor()
-                            )
-                            ExposedDropdownMenu(expanded = isDropdownExpanded, onDismissRequest = { isDropdownExpanded = false }) {
-                                groups.forEach { group -> DropdownMenuItem(text = { Text(group.name) }, onClick = { selectedGroup = group; isDropdownExpanded = false }) }
-                            }
-                        }
-                    }
-
-                    fun fieldModifier(myFocus: FocusRequester, nextFocus: FocusRequester?, fieldName: String): Modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(myFocus)
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused) {
-                                when(fieldName) {
-                                    "code" -> itemCode = itemCode.copy(selection = TextRange(0, itemCode.text.length))
-                                    "barcode" -> itemBarcode = itemBarcode.copy(selection = TextRange(0, itemBarcode.text.length))
-                                    "comment" -> comment = comment.copy(selection = TextRange(0, comment.text.length))
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        if (isCameraExpanded) {
+            // Full Screen Camera Mode
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+                if (hasCameraPermission) {
+                    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                    
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(bottom = 32.dp, start = 16.dp, end = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Užfiksuoti (Capture) Button
+                        Button(
+                            onClick = { captureAndSaveImage() },
+                            enabled = !isCapturing && selectedGroup != null,
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.weight(1f).height(56.dp)
+                        ) {
+                            if (isCapturing) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.PhotoCamera, null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(s.captureBtn, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                 }
                             }
                         }
-                        .onKeyEvent { keyEvent ->
-                            if (keyEvent.key == Key.Tab || keyEvent.key == Key.Enter) {
-                                if (nextFocus != null) nextFocus.requestFocus() else focusManager.clearFocus()
-                                true
-                            } else false
+
+                        // Grįžti (Cancel) Button
+                        Button(
+                            onClick = { isCameraExpanded = false },
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier.weight(1f).height(56.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(s.cancel, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                            Text("Kamerai reikalingas leidimas", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("Suteikti leidima") }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Standard Form Mode (Camera collapsed)
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (isGroupsLoading) CircularProgressIndicator()
+                            else if (groups.isEmpty()) Text(text = s.noGroupsTitle, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                            else {
+                                ExposedDropdownMenuBox(expanded = isDropdownExpanded, onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }) {
+                                    OutlinedTextField(
+                                        readOnly = true, value = selectedGroup?.name ?: s.selectGroup, onValueChange = {}, label = { Text(s.groupLabel) },
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
+                                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
+                                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                                    )
+                                    ExposedDropdownMenu(expanded = isDropdownExpanded, onDismissRequest = { isDropdownExpanded = false }) {
+                                        groups.forEach { group -> DropdownMenuItem(text = { Text(group.name) }, onClick = { selectedGroup = group; isDropdownExpanded = false }) }
+                                    }
+                                }
+                            }
+
+                            fun fieldModifier(myFocus: FocusRequester, nextFocus: FocusRequester?, fieldName: String): Modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(myFocus)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        when(fieldName) {
+                                            "code" -> itemCode = itemCode.copy(selection = TextRange(0, itemCode.text.length))
+                                            "barcode" -> itemBarcode = itemBarcode.copy(selection = TextRange(0, itemBarcode.text.length))
+                                            "comment" -> comment = comment.copy(selection = TextRange(0, comment.text.length))
+                                        }
+                                    }
+                                }
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.key == Key.Tab || keyEvent.key == Key.Enter) {
+                                        if (nextFocus != null) nextFocus.requestFocus() else focusManager.clearFocus()
+                                        true
+                                    } else false
+                                }
+
+                            // 1. Kodas field
+                            OutlinedTextField(
+                                value = itemCode, onValueChange = { itemCode = it }, label = { Text(s.groupFieldCode) }, singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next), keyboardActions = KeyboardActions(onNext = { barcodeFocus.requestFocus() }),
+                                trailingIcon = { IconButton(onClick = { triggerBarcodeScanner("code") }) { Icon(Icons.Default.QrCode, s.scanBarcode) } },
+                                colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
+                                modifier = fieldModifier(codeFocus, barcodeFocus, "code")
+                            )
+
+                            // 2. Barkodas field
+                            OutlinedTextField(
+                                value = itemBarcode, onValueChange = { itemBarcode = it }, label = { Text(s.groupFieldBarcode) }, singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next), keyboardActions = KeyboardActions(onNext = { commentFocus.requestFocus() }),
+                                trailingIcon = { IconButton(onClick = { triggerBarcodeScanner("barcode") }) { Icon(Icons.Default.QrCode, s.scanBarcode) } },
+                                colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
+                                modifier = fieldModifier(barcodeFocus, commentFocus, "barcode")
+                            )
+
+                            // 3. Comment field
+                            OutlinedTextField(
+                                value = comment, onValueChange = { comment = it }, label = { Text(s.commentLabel) }, singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                                colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
+                                modifier = fieldModifier(commentFocus, null, "comment")
+                            )
+                        }
+                    }
+
+                    // Two Action Buttons positioned directly under the Comment field
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Button 1: Save (crossed-out camera icon) - DB only, optional Auto Print
+                        Button(
+                            onClick = { saveWithoutPhoto() },
+                            enabled = !isCapturing && selectedGroup != null,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                            modifier = Modifier.weight(1f).height(50.dp)
+                        ) {
+                            Icon(Icons.Default.NoPhotography, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Išsaugoti", fontWeight = FontWeight.Bold)
                         }
 
-                    // 1. Kodas field
-                    OutlinedTextField(
-                        value = itemCode, onValueChange = { itemCode = it }, label = { Text(s.groupFieldCode) }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next), keyboardActions = KeyboardActions(onNext = { barcodeFocus.requestFocus() }),
-                        trailingIcon = { IconButton(onClick = { triggerBarcodeScanner("code") }) { Icon(Icons.Default.QrCode, s.scanBarcode) } },
-                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
-                        modifier = fieldModifier(codeFocus, barcodeFocus, "code")
-                    )
-
-                    // 2. Barkodas field
-                    OutlinedTextField(
-                        value = itemBarcode, onValueChange = { itemBarcode = it }, label = { Text(s.groupFieldBarcode) }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next), keyboardActions = KeyboardActions(onNext = { commentFocus.requestFocus() }),
-                        trailingIcon = { IconButton(onClick = { triggerBarcodeScanner("barcode") }) { Icon(Icons.Default.QrCode, s.scanBarcode) } },
-                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
-                        modifier = fieldModifier(barcodeFocus, commentFocus, "barcode")
-                    )
-
-                    // 3. Comment field
-                    OutlinedTextField(
-                        value = comment, onValueChange = { comment = it }, label = { Text(s.commentLabel) }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F2), unfocusedContainerColor = Color(0xFFF9F9F9)),
-                        modifier = fieldModifier(commentFocus, null, "comment")
-                    )
-                }
-            }
-
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(text = s.defaultStates, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(s.addCodeToPic, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Switch(checked = addCode, onCheckedChange = { addCode = it })
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(s.addCommentToPic, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Switch(checked = addComment, onCheckedChange = { addComment = it })
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(s.addDateToPic, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Switch(checked = addDate, onCheckedChange = { addDate = it })
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(s.printBarcodeOpt, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                        Switch(checked = printBarcode, onCheckedChange = { printBarcode = it })
+                        // Button 2: Save with photo (camera icon) - Opens camera
+                        Button(
+                            onClick = { isCameraExpanded = true },
+                            enabled = selectedGroup != null,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.weight(1f).height(50.dp)
+                        ) {
+                            Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Išsaugoti", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(100.dp))
         }
     }
+}
+
+private fun adjustBitmap(bitmap: Bitmap, brightness: Float, contrast: Float): Bitmap {
+    val adjustedBitmap = Bitmap.createScaledBitmap(bitmap, bitmap.width, bitmap.height, false)
+    val canvas = android.graphics.Canvas(adjustedBitmap)
+    val paint = android.graphics.Paint()
+    val cm = android.graphics.ColorMatrix(floatArrayOf(
+        contrast, 0f, 0f, 0f, brightness,
+        0f, contrast, 0f, 0f, brightness,
+        0f, 0f, contrast, 0f, brightness,
+        0f, 0f, 0f, 1f, 0f
+    ))
+    paint.colorFilter = android.graphics.ColorMatrixColorFilter(cm)
+    canvas.drawBitmap(bitmap, 0f, 0f, paint)
+    return adjustedBitmap
 }

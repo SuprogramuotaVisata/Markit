@@ -77,7 +77,8 @@ object BarcodeGenerator {
         date: String,
         addCode: Boolean,
         addComment: Boolean,
-        addDate: Boolean
+        addDate: Boolean,
+        qrOnly: Boolean = false
     ): Bitmap {
         if (!addCode && (!addComment || comment.isNullOrBlank()) && !addDate) {
             return original
@@ -89,12 +90,49 @@ object BarcodeGenerator {
 
         val photoWidth = original.width
         val photoHeight = original.height
-
-        // Configure typography/size based on image resolution
-        // Set basic size ratios relative to image height to look good on both high-res and low-res photos
         val scaleFactor = (photoHeight / 1000f).coerceAtLeast(0.5f)
-
         val padding = (16 * scaleFactor).toInt()
+
+        if (qrOnly) {
+            // Build QR text
+            val sb = java.lang.StringBuilder()
+            sb.append("Kodas: ").append(code)
+            sb.append("\nData: ").append(date)
+            if (!comment.isNullOrBlank()) {
+                sb.append("\nAprasymas: ").append(comment)
+            }
+            val qrText = sb.toString()
+            val qrSize = (180 * scaleFactor).toInt().coerceAtLeast(120)
+            val qrBitmap = generateQrCode(qrText, qrSize, qrSize)
+            if (qrBitmap != null) {
+                val boxWidth = qrSize + padding * 2
+                val boxHeight = qrSize + padding * 2
+
+                val boxLeft = photoWidth - boxWidth - padding
+                val boxTop = photoHeight - boxHeight - padding
+
+                val bgPaint = Paint().apply {
+                    color = Color.argb(255, 255, 255, 255) // Solid white background
+                    style = Paint.Style.FILL
+                    isAntiAlias = true
+                }
+                val borderPaint = Paint().apply {
+                    color = Color.argb(120, 0, 0, 0)
+                    style = Paint.Style.STROKE
+                    strokeWidth = 2f * scaleFactor
+                    isAntiAlias = true
+                }
+
+                val overlayRect = Rect(boxLeft, boxTop, boxLeft + boxWidth, boxTop + boxHeight)
+                canvas.drawRect(overlayRect, bgPaint)
+                canvas.drawRect(overlayRect, borderPaint)
+
+                // Draw QR Code
+                canvas.drawBitmap(qrBitmap, (boxLeft + padding).toFloat(), (boxTop + padding).toFloat(), null)
+            }
+            return resultBitmap
+        }
+
         val textSpacing = (8 * scaleFactor).toInt()
 
         // Content measurements

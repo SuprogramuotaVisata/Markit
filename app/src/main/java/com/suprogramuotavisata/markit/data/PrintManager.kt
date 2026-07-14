@@ -20,10 +20,51 @@ object PrintManager {
      */
     fun printBarcode(context: Context, code: String, barcodeBitmap: Bitmap) {
         val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
+        val promptForCopies = sharedPrefs.getBoolean("prompt_for_copies", false)
         val printerType = sharedPrefs.getString("printer_type", "system") ?: "system"
-        
-        // Strip accents from the barcode string for strict hardware printer compatibility
         val cleanCode = TranslationManager.stripAccents(code)
+
+        if (promptForCopies && (printerType == "network" || printerType == "usb")) {
+            // Show alert dialog to enter copies count
+            val input = android.widget.EditText(context).apply {
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                setText("1")
+                setSelection(0, 1)
+            }
+            
+            // Set padding to look nice in the dialog
+            val container = android.widget.FrameLayout(context)
+            val params = android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                leftMargin = (24 * context.resources.displayMetrics.density).toInt()
+                rightMargin = (24 * context.resources.displayMetrics.density).toInt()
+                topMargin = (8 * context.resources.displayMetrics.density).toInt()
+                bottomMargin = (8 * context.resources.displayMetrics.density).toInt()
+            }
+            input.layoutParams = params
+            container.addView(input)
+
+            AlertDialog.Builder(context)
+                .setTitle("Pasirinkite kopijų skaičių")
+                .setView(container)
+                .setPositiveButton("Spausdinti") { _, _ ->
+                    val copiesVal = input.text.toString().toIntOrNull() ?: 1
+                    executePrint(context, cleanCode, barcodeBitmap, copiesVal.coerceAtLeast(1))
+                }
+                .setNegativeButton("Atšaukti", null)
+                .show()
+        } else {
+            val copies = sharedPrefs.getInt("print_copies", 1).coerceAtLeast(1)
+            executePrint(context, cleanCode, barcodeBitmap, copies)
+        }
+    }
+
+    private fun executePrint(context: Context, cleanCode: String, barcodeBitmap: Bitmap, copies: Int) {
+        val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
+        val printerType = sharedPrefs.getString("printer_type", "system") ?: "system"
+        val printerBrand = sharedPrefs.getString("printer_brand", "brother") ?: "brother"
 
         when (printerType) {
             "network" -> {
@@ -31,7 +72,7 @@ object PrintManager {
                 val portStr = sharedPrefs.getString("printer_port", "9100") ?: "9100"
                 val port = portStr.toIntOrNull() ?: 9100
                 
-                Log.d(TAG, "Network Printing - Target IP: $ip, Port: $port, Code: $cleanCode")
+                Log.d(TAG, "Network Printing - Target IP: $ip, Port: $port, Code: $cleanCode, Copies: $copies")
                 
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
@@ -49,16 +90,23 @@ object PrintManager {
                             }
                         }
 
-                        Log.d(TAG, "Naudojamas spausdintuvo IP: $finalIp")
-                        BrotherPrinterDriver.printBitmap(context, finalIp, port, barcodeBitmap)
+                        Log.d(TAG, "Naudojamas spausdintuvo IP: $finalIp, Brand: $printerBrand")
+                        var lastResult: Result<Int> = Result.success(0)
+                        for (i in 0 until copies) {
+                            lastResult = if (printerBrand == "xprinter") {
+                                EscPosPrinterDriver.printBitmap(context, finalIp, port, barcodeBitmap)
+                            } else {
+                                BrotherPrinterDriver.printBitmap(context, finalIp, port, barcodeBitmap)
+                            }
+                            if (lastResult.isFailure) break
+                            if (copies > 1 && i < copies - 1) {
+                                try { Thread.sleep(500) } catch (e: Exception) {}
+                            }
+                        }
+                        lastResult
                     }
                     if (result.isSuccess) {
-                        val count = result.getOrNull() ?: 0
-                        AlertDialog.Builder(context)
-                            .setTitle("Spausdinimas sėkmingas")
-                            .setMessage("Sėkmingai išsiųsta į tinklo spausdintuvą.\nGeneruoti juodi taškai: $count")
-                            .setPositiveButton("Gerai", null)
-                            .show()
+                        Toast.makeText(context, "Sėkmingai įvykdyta", Toast.LENGTH_SHORT).show()
                     } else {
                         val ex = result.exceptionOrNull()
                         
@@ -88,18 +136,25 @@ object PrintManager {
                 }
             }
             "usb" -> {
-                Log.d(TAG, "USB Printing - Code: $cleanCode")
+                Log.d(TAG, "USB Printing - Code: $cleanCode, Copies: $copies, Brand: $printerBrand")
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
-                        BrotherPrinterDriver.printBitmapUsb(context, barcodeBitmap)
+                        var lastResult: Result<Int> = Result.success(0)
+                        for (i in 0 until copies) {
+                            lastResult = if (printerBrand == "xprinter") {
+                                EscPosPrinterDriver.printBitmapUsb(context, barcodeBitmap)
+                            } else {
+                                BrotherPrinterDriver.printBitmapUsb(context, barcodeBitmap)
+                            }
+                            if (lastResult.isFailure) break
+                            if (copies > 1 && i < copies - 1) {
+                                try { Thread.sleep(500) } catch (e: Exception) {}
+                            }
+                        }
+                        lastResult
                     }
                     if (result.isSuccess) {
-                        val count = result.getOrNull() ?: 0
-                        AlertDialog.Builder(context)
-                            .setTitle("Spausdinimas sėkmingas")
-                            .setMessage("Sėkmingai išsiųsta per USB.\nGeneruoti juodi taškai: $count")
-                            .setPositiveButton("Gerai", null)
-                            .show()
+                        Toast.makeText(context, "Sėkmingai įvykdyta", Toast.LENGTH_SHORT).show()
                     } else {
                         val ex = result.exceptionOrNull()
                         AlertDialog.Builder(context)
@@ -113,11 +168,9 @@ object PrintManager {
             "bluetooth" -> {
                 val btDevice = sharedPrefs.getString("printer_bt", "") ?: ""
                 Log.d(TAG, "Bluetooth Printing - Device: $btDevice, Code: $cleanCode")
-                // Generic Bluetooth printing implementation (simulation)
                 Toast.makeText(context, "Bluetooth Print ($btDevice) -> $cleanCode", Toast.LENGTH_LONG).show()
             }
             else -> {
-                // Default System Print Spooler (opens Android print UI)
                 try {
                     val printHelper = PrintHelper(context)
                     printHelper.scaleMode = PrintHelper.SCALE_MODE_FIT

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -365,11 +366,20 @@ fun ItemCard(item: ProductItem, onViewImageClick: () -> Unit) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(text = "${s.commentLabel}: ${item.comment ?: "-"}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            val hasPhoto = !item.localPhotoPath.isNullOrBlank() && java.io.File(item.localPhotoPath).exists()
             IconButton(
-                onClick = onViewImageClick,
-                modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(50))
+                onClick = { if (hasPhoto) onViewImageClick() },
+                enabled = hasPhoto,
+                modifier = Modifier.background(
+                    if (hasPhoto) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant,
+                    RoundedCornerShape(50)
+                )
             ) {
-                Icon(imageVector = Icons.Default.Visibility, contentDescription = s.viewPhoto, tint = MaterialTheme.colorScheme.primary)
+                Icon(
+                    imageVector = if (hasPhoto) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                    contentDescription = s.viewPhoto,
+                    tint = if (hasPhoto) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                )
             }
         }
     }

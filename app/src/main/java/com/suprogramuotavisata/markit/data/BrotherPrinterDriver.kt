@@ -37,12 +37,37 @@ object BrotherPrinterDriver {
             socket.connect(InetSocketAddress(ip, port), 5000)
             val out = BufferedOutputStream(socket.getOutputStream())
             
-            // Calculate lines info
-            val targetWidth = 128
-            val scale = targetWidth.toFloat() / bitmap.width.toFloat()
+            // Load print margins dynamically from settings with hardware safe limits enforced
+            val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
+            val marginStart = sharedPrefs.getInt("margin_start", 50).coerceIn(35, 150)
+            val marginEndInput = sharedPrefs.getInt("margin_end", 250).coerceIn(180, 300)
+            val autoCut = sharedPrefs.getBoolean("printer_auto_cut", true)
+            val tapeWidth = sharedPrefs.getInt("printer_tape_width", 24)
+
+            // Resolve printer hardware parameters (media width byte code, active printable width in dots, and centering pin offset)
+            val (mediaWidthByte, printWidth, pinOffset) = when (tapeWidth) {
+                18 -> Triple(0x12.toByte(), 112, 8)
+                12 -> Triple(0x0C.toByte(), 74, 27)
+                9  -> Triple(0x09.toByte(), 50, 39)
+                6  -> Triple(0x06.toByte(), 32, 48)
+                else -> Triple(0x18.toByte(), 128, 0) // 24mm
+            }
+
+            // Scale calculations based on printable width
+            val scale = printWidth.toFloat() / bitmap.width.toFloat()
             val scaledHeight = (bitmap.height * scale).toInt()
-            val totalLines = scaledHeight + 300
+
+            // PT-P750W requires a combined margin padding of at least 300 empty lines to feed and cut reliably.
+            // Pad the end margin to maintain a total page length equivalent to scaledHeight + 300.
+            var marginEnd = marginEndInput
+            val paddingSum = marginStart + marginEnd
+            if (paddingSum < 300) {
+                marginEnd += (300 - paddingSum)
+            }
+            val totalLines = scaledHeight + marginStart + marginEnd
             
+            Log.d(TAG, "printBitmap (Wi-Fi) - width: ${bitmap.width}, height: ${bitmap.height}, tapeWidth: ${tapeWidth}mm, printWidth: $printWidth, pinOffset: $pinOffset, scaledHeight: $scaledHeight, marginStart: $marginStart, marginEnd: $marginEnd, totalLines: $totalLines")
+
             val r0 = (totalLines and 0xFF).toByte()
             val r1 = ((totalLines shr 8) and 0xFF).toByte()
             val r2 = ((totalLines shr 16) and 0xFF).toByte()
@@ -54,12 +79,12 @@ object BrotherPrinterDriver {
             out.write(byteArrayOf(0x1B, 0x69, 0x61, 0x01))   // ESC i a 1 (Switch to Raster Mode)
             out.flush()
             
-            // 3. SET MEDIA INFO (TZe tape width 24mm 0x18, auto-detect tape 0x00, total lines)
+            // 3. SET MEDIA INFO (TZe tape width, auto-detect tape 0x00, total lines)
             out.write(byteArrayOf(
                 0x1B, 0x69, 0x7A, 
                 0x84.toByte(), // valid_flags (Recover, Width)
                 0x00,          // media_type (auto-detect)
-                0x18,          // media_width (24mm)
+                mediaWidthByte, // media_width (dynamic)
                 0x00,          // media_length (0)
                 r0, r1, r2, r3, // raster_num (4 bytes little-endian)
                 0x00,          // page_type (first/only page)
@@ -67,21 +92,22 @@ object BrotherPrinterDriver {
             ))
             
             // 4. SET PARAMETERS
-            out.write(byteArrayOf(0x1B, 0x69, 0x4D, 0x40)) // Auto cut
+            val cutByte = if (autoCut) 0x40.toByte() else 0x00.toByte()
+            out.write(byteArrayOf(0x1B, 0x69, 0x4D, cutByte)) // Auto cut setting
             out.write(byteArrayOf(0x4D, 0x02)) // Select RLE/TIFF compression mode (0x02)
             out.flush()
 
             // 5. DATA TRANSFER
-            // A. Initial Padding (Run-up)
-            repeat(50) {
+            // A. Initial Padding (Run-up) using dynamic margin setting
+            repeat(marginStart) {
                 out.write(0x5A) // Z command: empty line
             }
 
             // B. Actual Image
-            val blackPixels = sendStandardRasterLines(out, bitmap)
+            val blackPixels = sendStandardRasterLines(out, bitmap, printWidth, pinOffset)
 
-            // C. Final Padding (CRITICAL: Push text past the cutter)
-            repeat(250) {
+            // C. Final Padding (CRITICAL: Push text past the cutter) using dynamic margin setting
+            repeat(marginEnd) {
                 out.write(0x5A) // Z command: empty line
             }
 
@@ -99,13 +125,12 @@ object BrotherPrinterDriver {
         }
     }
 
-    private fun sendStandardRasterLines(out: OutputStream, bitmap: Bitmap): Int {
-        val targetWidth = 128 // 128 dots for 24mm tape
+    private fun sendStandardRasterLines(out: OutputStream, bitmap: Bitmap, printWidth: Int, pinOffset: Int): Int {
         val bytesPerLine = 16 
         var blackPixels = 0
 
-        val scale = targetWidth.toFloat() / bitmap.width.toFloat()
-        val scaledWidth = targetWidth
+        val scale = printWidth.toFloat() / bitmap.width.toFloat()
+        val scaledWidth = printWidth
         val scaledHeight = (bitmap.height * scale).toInt()
         val scaled = Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
 
@@ -116,8 +141,9 @@ object BrotherPrinterDriver {
                 val pixel = scaled.getPixel(x, y)
                 if (Color.red(pixel) < 180) { 
                     val mirroredX = (scaledWidth - 1) - x
-                    val byteIdx = mirroredX / 8
-                    val bitIdx = 7 - (mirroredX % 8)
+                    val physicalPin = mirroredX + pinOffset
+                    val byteIdx = physicalPin / 8
+                    val bitIdx = 7 - (physicalPin % 8)
                     line[byteIdx] = (line[byteIdx].toInt() or (1 shl bitIdx)).toByte()
                     blackPixels++
                     hasBlack = true
@@ -184,14 +210,39 @@ object BrotherPrinterDriver {
                 return Result.failure(Exception("Nepavyko užimti USB sąsajos."))
             }
 
+            // Load print margins dynamically from settings with hardware safe limits enforced
+            val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
+            val marginStart = sharedPrefs.getInt("margin_start", 50).coerceIn(35, 150)
+            val marginEndInput = sharedPrefs.getInt("margin_end", 250).coerceIn(180, 300)
+            val autoCut = sharedPrefs.getBoolean("printer_auto_cut", true)
+            val tapeWidth = sharedPrefs.getInt("printer_tape_width", 24)
+
+            // Resolve printer hardware parameters (media width byte code, active printable width in dots, and centering pin offset)
+            val (mediaWidthByte, printWidth, pinOffset) = when (tapeWidth) {
+                18 -> Triple(0x12.toByte(), 112, 8)
+                12 -> Triple(0x0C.toByte(), 74, 27)
+                9  -> Triple(0x09.toByte(), 50, 39)
+                6  -> Triple(0x06.toByte(), 32, 48)
+                else -> Triple(0x18.toByte(), 128, 0) // 24mm
+            }
+
             val byteStream = java.io.ByteArrayOutputStream()
             
-            // Calculate lines info
-            val targetWidth = 128
-            val scale = targetWidth.toFloat() / bitmap.width.toFloat()
+            // Scale calculations based on printable width
+            val scale = printWidth.toFloat() / bitmap.width.toFloat()
             val scaledHeight = (bitmap.height * scale).toInt()
-            val totalLines = scaledHeight + 300
+
+            // PT-P750W requires a combined margin padding of at least 300 empty lines to feed and cut reliably.
+            // Pad the end margin to maintain a total page length equivalent to scaledHeight + 300.
+            var marginEnd = marginEndInput
+            val paddingSum = marginStart + marginEnd
+            if (paddingSum < 300) {
+                marginEnd += (300 - paddingSum)
+            }
+            val totalLines = scaledHeight + marginStart + marginEnd
             
+            Log.d(TAG, "printBitmapUsb (USB) - width: ${bitmap.width}, height: ${bitmap.height}, tapeWidth: ${tapeWidth}mm, printWidth: $printWidth, pinOffset: $pinOffset, scaledHeight: $scaledHeight, marginStart: $marginStart, marginEnd: $marginEnd, totalLines: $totalLines")
+
             val r0 = (totalLines and 0xFF).toByte()
             val r1 = ((totalLines shr 8) and 0xFF).toByte()
             val r2 = ((totalLines shr 16) and 0xFF).toByte()
@@ -202,12 +253,12 @@ object BrotherPrinterDriver {
             byteStream.write(byteArrayOf(0x1B, 0x40))             // ESC @ (Initialize)
             byteStream.write(byteArrayOf(0x1B, 0x69, 0x61, 0x01))   // ESC i a 1 (Switch to Raster Mode)
             
-            // 3. SET MEDIA INFO (TZe tape width 24mm 0x18, auto-detect tape 0x00, total lines)
+            // 3. SET MEDIA INFO (TZe tape width, auto-detect tape 0x00, total lines)
             byteStream.write(byteArrayOf(
                 0x1B, 0x69, 0x7A, 
                 0x84.toByte(), // valid_flags (Recover, Width)
                 0x00,          // media_type (auto-detect)
-                0x18,          // media_width (24mm)
+                mediaWidthByte, // media_width (dynamic)
                 0x00,          // media_length (0)
                 r0, r1, r2, r3, // raster_num (4 bytes little-endian)
                 0x00,          // page_type (first/only page)
@@ -215,20 +266,21 @@ object BrotherPrinterDriver {
             ))
             
             // 4. SET PARAMETERS
-            byteStream.write(byteArrayOf(0x1B, 0x69, 0x4D, 0x40)) // Auto cut
+            val cutByte = if (autoCut) 0x40.toByte() else 0x00.toByte()
+            byteStream.write(byteArrayOf(0x1B, 0x69, 0x4D, cutByte)) // Auto cut setting
             byteStream.write(byteArrayOf(0x4D, 0x02)) // Select RLE/TIFF compression mode (0x02)
 
             // 5. DATA TRANSFER
-            // A. Initial Padding (Run-up)
-            repeat(50) {
+            // A. Initial Padding (Run-up) using dynamic margin setting
+            repeat(marginStart) {
                 byteStream.write(0x5A) // Z command: empty line
             }
 
             // B. Actual Image
-            val blackPixels = writeRasterLinesToStream(byteStream, bitmap)
+            val blackPixels = writeRasterLinesToStream(byteStream, bitmap, printWidth, pinOffset)
 
-            // C. Final Padding (CRITICAL: Push text past the cutter)
-            repeat(250) {
+            // C. Final Padding (CRITICAL: Push text past the cutter) using dynamic margin setting
+            repeat(marginEnd) {
                 byteStream.write(0x5A) // Z command: empty line
             }
 
@@ -259,13 +311,12 @@ object BrotherPrinterDriver {
         }
     }
 
-    private fun writeRasterLinesToStream(stream: java.io.ByteArrayOutputStream, bitmap: Bitmap): Int {
-        val targetWidth = 128
+    private fun writeRasterLinesToStream(stream: java.io.ByteArrayOutputStream, bitmap: Bitmap, printWidth: Int, pinOffset: Int): Int {
         val bytesPerLine = 16 
         var blackPixels = 0
 
-        val scale = targetWidth.toFloat() / bitmap.width.toFloat()
-        val scaledWidth = targetWidth
+        val scale = printWidth.toFloat() / bitmap.width.toFloat()
+        val scaledWidth = printWidth
         val scaledHeight = (bitmap.height * scale).toInt()
         val scaled = Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
 
@@ -276,8 +327,9 @@ object BrotherPrinterDriver {
                 val pixel = scaled.getPixel(x, y)
                 if (Color.red(pixel) < 180) { 
                     val mirroredX = (scaledWidth - 1) - x
-                    val byteIdx = mirroredX / 8
-                    val bitIdx = 7 - (mirroredX % 8)
+                    val physicalPin = mirroredX + pinOffset
+                    val byteIdx = physicalPin / 8
+                    val bitIdx = 7 - (physicalPin % 8)
                     line[byteIdx] = (line[byteIdx].toInt() or (1 shl bitIdx)).toByte()
                     blackPixels++
                     hasBlack = true
