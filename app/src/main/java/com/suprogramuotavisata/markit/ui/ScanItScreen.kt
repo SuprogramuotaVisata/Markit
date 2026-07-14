@@ -300,6 +300,37 @@ fun ScanItScreen() {
                                 barcode = finalBarcode
                             )
 
+                            // API sync logic if configured
+                            val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
+                            val syncType = sharedPrefs.getString("api_sync_type", "disabled") ?: "disabled"
+                            val syncUrl = sharedPrefs.getString("api_sync_url", "") ?: ""
+                            if (syncType != "disabled" && syncUrl.isNotBlank()) {
+                                val provider = com.suprogramuotavisata.markit.data.sync.SyncManager.getProvider(syncType)
+                                if (provider != null) {
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        provider.syncGroup(selectedGroup!!, syncUrl)
+                                        val itemToSync = com.suprogramuotavisata.markit.data.ProductItem(
+                                            id = itemId,
+                                            groupId = selectedGroup!!.id,
+                                            code = currentCode,
+                                            comment = comment.text.trim().takeIf { it.isNotBlank() },
+                                            date = currentDate,
+                                            localPhotoPath = localFile.absolutePath,
+                                            barcode = finalBarcode
+                                        )
+                                        val syncResult = provider.syncItem(itemToSync, selectedGroup!!.name, syncUrl)
+                                        withContext(Dispatchers.Main) {
+                                            if (syncResult.isSuccess) {
+                                                Toast.makeText(context, s.apiSyncSuccess, Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                val errMsg = syncResult.exceptionOrNull()?.message ?: ""
+                                                Toast.makeText(context, "${s.apiSyncError}$errMsg", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             if (finalBarcode != null && finalBarcode != itemBarcode.text) {
                                 withContext(Dispatchers.Main) { Toast.makeText(context, "Aptiktas barkodas: $finalBarcode", Toast.LENGTH_LONG).show() }
                             }
@@ -380,6 +411,37 @@ fun ScanItScreen() {
                     driveFileId = null,
                     barcode = finalBarcode
                 )
+
+                // API sync logic if configured (no photo)
+                val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
+                val syncType = sharedPrefs.getString("api_sync_type", "disabled") ?: "disabled"
+                val syncUrl = sharedPrefs.getString("api_sync_url", "") ?: ""
+                if (syncType != "disabled" && syncUrl.isNotBlank()) {
+                    val provider = com.suprogramuotavisata.markit.data.sync.SyncManager.getProvider(syncType)
+                    if (provider != null) {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            provider.syncGroup(selectedGroup!!, syncUrl)
+                            val itemToSync = com.suprogramuotavisata.markit.data.ProductItem(
+                                id = itemId,
+                                groupId = selectedGroup!!.id,
+                                code = currentCode,
+                                comment = comment.text.trim().takeIf { it.isNotBlank() },
+                                date = currentDate,
+                                localPhotoPath = null,
+                                barcode = finalBarcode
+                            )
+                            val syncResult = provider.syncItem(itemToSync, selectedGroup!!.name, syncUrl)
+                            withContext(Dispatchers.Main) {
+                                if (syncResult.isSuccess) {
+                                    Toast.makeText(context, s.apiSyncSuccess, Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val errMsg = syncResult.exceptionOrNull()?.message ?: ""
+                                    Toast.makeText(context, "${s.apiSyncError}$errMsg", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    }
+                }
 
                 if (printBarcode) {
                     withContext(Dispatchers.Main) {

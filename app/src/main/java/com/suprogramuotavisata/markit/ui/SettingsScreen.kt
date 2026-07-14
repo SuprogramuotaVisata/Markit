@@ -117,6 +117,8 @@ fun SettingsScreen() {
     var cameraBrightness by remember { mutableStateOf(0f) }
     var cameraContrast by remember { mutableStateOf(1f) }
     var settingsApiUrl by remember { mutableStateOf("") }
+    var apiSyncType by remember { mutableStateOf("disabled") }
+    var apiSyncUrl by remember { mutableStateOf("") }
 
     // Collapsible sections state
     var isCloudExpanded by remember { mutableStateOf(false) }
@@ -162,6 +164,8 @@ fun SettingsScreen() {
         cameraBrightness = sharedPrefs.getFloat("camera_brightness", 0f)
         cameraContrast = sharedPrefs.getFloat("camera_contrast", 1f)
         settingsApiUrl = sharedPrefs.getString("settings_api_url", "") ?: ""
+        apiSyncType = sharedPrefs.getString("api_sync_type", "disabled") ?: "disabled"
+        apiSyncUrl = sharedPrefs.getString("api_sync_url", "") ?: ""
     }
 
     // NFC Hardware checks
@@ -582,6 +586,69 @@ fun SettingsScreen() {
                 ) {
                     Text(s.settingsApiGetBtn, fontSize = 12.sp, textAlign = TextAlign.Center)
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                s.apiSyncTitle,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                s.apiSyncDesc,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(s.apiSyncTypeLabel, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Spacer(modifier = Modifier.height(2.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                FilterChip(
+                    selected = apiSyncType == "disabled",
+                    onClick = {
+                        apiSyncType = "disabled"
+                        sharedPrefs.edit().putString("api_sync_type", "disabled").apply()
+                    },
+                    label = { Text(s.apiSyncDisabled, maxLines = 1) }
+                )
+                com.suprogramuotavisata.markit.data.sync.SyncManager.getAllProviders().forEach { provider ->
+                    FilterChip(
+                        selected = apiSyncType == provider.id,
+                        onClick = {
+                            apiSyncType = provider.id
+                            sharedPrefs.edit().putString("api_sync_type", provider.id).apply()
+                        },
+                        label = { Text(provider.name, maxLines = 1) }
+                    )
+                }
+            }
+
+            if (apiSyncType != "disabled") {
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = apiSyncUrl,
+                    onValueChange = {
+                        apiSyncUrl = it
+                        sharedPrefs.edit().putString("api_sync_url", it).apply()
+                    },
+                    label = { Text(s.apiSyncUrlLabel) },
+                    singleLine = true,
+                    placeholder = { Text("https://example.com/api") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFF2F2F2),
+                        unfocusedContainerColor = Color(0xFFF9F9F9)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
 

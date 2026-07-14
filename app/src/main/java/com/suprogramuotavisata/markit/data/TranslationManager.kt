@@ -156,6 +156,14 @@ interface AppStrings {
     val settingsApiSuccess: String
     val settingsApiSendSuccess: String
     val settingsApiError: String
+    val apiSyncTitle: String
+    val apiSyncTypeLabel: String
+    val apiSyncEnabled: String
+    val apiSyncDisabled: String
+    val apiSyncUrlLabel: String
+    val apiSyncSuccess: String
+    val apiSyncError: String
+    val apiSyncDesc: String
 }
 
 object EnStrings : AppStrings {
@@ -306,6 +314,14 @@ object EnStrings : AppStrings {
     override val settingsApiSuccess = "Settings updated successfully!"
     override val settingsApiSendSuccess = "Settings sent successfully!"
     override val settingsApiError = "Error: "
+    override val apiSyncTitle = "API Data Sync"
+    override val apiSyncTypeLabel = "Sync Provider"
+    override val apiSyncEnabled = "Enabled"
+    override val apiSyncDisabled = "Disabled"
+    override val apiSyncUrlLabel = "Sync API URL"
+    override val apiSyncSuccess = "Data synced via API successfully!"
+    override val apiSyncError = "API sync failed: "
+    override val apiSyncDesc = "Send saved groups and items dynamically to third-party endpoints. Uses background coroutine execution."
 }
 
 // Proper Lithuanian Strings (Grammatically correct with standard accented characters)
@@ -457,6 +473,14 @@ object LtStrings : AppStrings {
     override val settingsApiSuccess = "Nustatymai sėkmingai atnaujinti!"
     override val settingsApiSendSuccess = "Nustatymai sėkmingai išsiųsti!"
     override val settingsApiError = "Klaida: "
+    override val apiSyncTitle = "API duomenų sinchronizavimas"
+    override val apiSyncTypeLabel = "Sinchronizacijos tipas"
+    override val apiSyncEnabled = "Aktyvuota"
+    override val apiSyncDisabled = "Išjungta"
+    override val apiSyncUrlLabel = "Sinchronizacijos API URL"
+    override val apiSyncSuccess = "Duomenys sėkmingai sinchronizuoti per API!"
+    override val apiSyncError = "API sinchronizacijos klaida: "
+    override val apiSyncDesc = "Automatiškai siųsti išsaugotas prekes ir grupes į išorinius API tinklus fone."
 }
 
 val LocalAppStrings = staticCompositionLocalOf<AppStrings> { EnStrings }
