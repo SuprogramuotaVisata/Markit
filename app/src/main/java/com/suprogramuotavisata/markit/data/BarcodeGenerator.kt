@@ -274,16 +274,17 @@ object BarcodeGenerator {
         barcode: String?,
         description: String?,
         rotation: Int = 0,
-        qrOnly: Boolean = false
+        qrOnly: Boolean = false,
+        targetWidth: Int = 128
     ): Bitmap {
         if (qrOnly) {
-            return generateQrOnlyLabel(name, code, barcode, description, rotation)
+            return generateQrOnlyLabel(name, code, barcode, description, rotation, targetWidth)
         }
         if (rotation == 90 || rotation == 270) {
             return generateHorizontalLabel(name, code, barcode, description, rotation)
         }
 
-        val width = 128 // Target pins for 24mm tape at 180dpi
+        val width = targetWidth // Target pins depending on printer tape
         val padding = 2 // Decreased padding to maximize barcode width for scan-ability
         val textSpacing = 10
         
@@ -493,21 +494,11 @@ object BarcodeGenerator {
         code: String,
         barcode: String?,
         description: String?,
-        rotation: Int
+        rotation: Int,
+        targetWidth: Int
     ): Bitmap {
-        val size = 128
-        val sb = java.lang.StringBuilder()
-        sb.append("Pavadinimas: ").append(name)
-        sb.append("\nKodas: ").append(code)
-        if (!barcode.isNullOrBlank()) {
-            sb.append("\nBarkodas: ").append(barcode)
-        }
-        if (!description.isNullOrBlank()) {
-            sb.append("\nAprasymas: ").append(description)
-        }
-
-        val qrText = sb.toString()
-        val qrBitmap = generateQrCode(qrText, size, size) ?: Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
+        val qrText = barcode.takeIf { !it.isNullOrBlank() } ?: code
+        val qrBitmap = generateQrCode(qrText, targetWidth, targetWidth) ?: Bitmap.createBitmap(targetWidth, targetWidth, Bitmap.Config.ARGB_8888).apply {
             val canvas = Canvas(this)
             canvas.drawColor(Color.WHITE)
         }

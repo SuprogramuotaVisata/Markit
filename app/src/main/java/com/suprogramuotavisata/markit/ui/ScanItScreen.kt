@@ -58,6 +58,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -242,21 +243,27 @@ fun ScanItScreen() {
                                 bitmap = adjustBitmap(bitmap, brightness, contrast)
                             }
 
-                            // Auto-detect barcode on capture region
-                            val detectedBarcode = suspendCancellableCoroutine<String?> { cont ->
-                                try {
-                                    val bmpWidth = bitmap.width
-                                    val bmpHeight = bitmap.height
-                                    val cropWidth = (bmpWidth * 0.70f).toInt()
-                                    val cropHeight = (bmpHeight * 0.35f).toInt()
-                                    val startX = (bmpWidth - cropWidth) / 2
-                                    val startY = (bmpHeight - cropHeight) / 2
-                                    val croppedBitmap = Bitmap.createBitmap(bitmap, startX, startY, cropWidth, cropHeight)
-                                    val inputImage = InputImage.fromBitmap(croppedBitmap, 0)
-                                    BarcodeScanning.getClient().process(inputImage)
-                                        .addOnSuccessListener { barcodes -> cont.resume(barcodes.firstOrNull()?.rawValue?.trim()) }
-                                        .addOnFailureListener { cont.resume(null) }
-                                } catch (e: Exception) { cont.resume(null) }
+                            // Auto-detect barcode on capture region with a 2-second timeout to prevent hanging
+                            val detectedBarcode = try {
+                                withTimeoutOrNull(2000) {
+                                    suspendCancellableCoroutine<String?> { cont ->
+                                        try {
+                                            val bmpWidth = bitmap.width
+                                            val bmpHeight = bitmap.height
+                                            val cropWidth = (bmpWidth * 0.70f).toInt()
+                                            val cropHeight = (bmpHeight * 0.35f).toInt()
+                                            val startX = (bmpWidth - cropWidth) / 2
+                                            val startY = (bmpHeight - cropHeight) / 2
+                                            val croppedBitmap = Bitmap.createBitmap(bitmap, startX, startY, cropWidth, cropHeight)
+                                            val inputImage = InputImage.fromBitmap(croppedBitmap, 0)
+                                            BarcodeScanning.getClient().process(inputImage)
+                                                .addOnSuccessListener { barcodes -> cont.resume(barcodes.firstOrNull()?.rawValue?.trim()) }
+                                                .addOnFailureListener { cont.resume(null) }
+                                        } catch (e: Exception) { cont.resume(null) }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                null
                             }
 
                             val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
@@ -299,6 +306,9 @@ fun ScanItScreen() {
                                 driveFileId = null,
                                 barcode = finalBarcode
                             )
+                            if (itemId <= 0) {
+                                throw Exception("Duomenų bazės įrašymo klaida (ID: $itemId)")
+                            }
 
                             // API sync logic if configured
                             val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)
@@ -411,6 +421,9 @@ fun ScanItScreen() {
                     driveFileId = null,
                     barcode = finalBarcode
                 )
+                if (itemId <= 0) {
+                    throw Exception("Duomenų bazės įrašymo klaida (ID: $itemId)")
+                }
 
                 // API sync logic if configured (no photo)
                 val sharedPrefs = context.getSharedPreferences("MarkItSettings", Context.MODE_PRIVATE)

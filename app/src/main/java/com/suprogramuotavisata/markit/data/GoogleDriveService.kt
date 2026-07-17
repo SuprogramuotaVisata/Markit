@@ -322,6 +322,8 @@ object GoogleDriveService {
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.setRequestProperty("Authorization", "Bearer $token")
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
             conn.connect()
 
             val responseCode = conn.responseCode
@@ -346,6 +348,8 @@ object GoogleDriveService {
         conn.requestMethod = "GET"
         conn.setRequestProperty("Authorization", "Bearer $token")
         conn.setRequestProperty("Accept", "application/json")
+        conn.connectTimeout = 10000
+        conn.readTimeout = 10000
         conn.connect()
 
         val responseCode = conn.responseCode
@@ -364,6 +368,8 @@ object GoogleDriveService {
         conn.setRequestProperty("Authorization", "Bearer $token")
         conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
         conn.setRequestProperty("Accept", "application/json")
+        conn.connectTimeout = 10000
+        conn.readTimeout = 10000
         conn.doOutput = true
         conn.outputStream.use { os ->
             os.write(jsonBody.toByteArray(Charsets.UTF_8))
@@ -385,6 +391,8 @@ object GoogleDriveService {
         conn.setRequestProperty("Authorization", "Bearer $token")
         conn.setRequestProperty("Content-Type", contentType)
         conn.setRequestProperty("Content-Length", content.size.toString())
+        conn.connectTimeout = 10000
+        conn.readTimeout = 10000
         conn.doOutput = true
         conn.outputStream.use { os ->
             os.write(content)

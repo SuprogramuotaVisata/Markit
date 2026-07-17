@@ -254,7 +254,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             put(KEY_ITEM_DRIVE_ID, driveFileId)
             put(KEY_ITEM_BARCODE, barcode)
         }
-        return db.insert(TABLE_ITEMS, null, values)
+        return db.insertOrThrow(TABLE_ITEMS, null, values)
     }
 
     fun updateItemDriveId(itemId: Long, driveFileId: String): Boolean {

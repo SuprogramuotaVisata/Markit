@@ -164,6 +164,26 @@ interface AppStrings {
     val apiSyncSuccess: String
     val apiSyncError: String
     val apiSyncDesc: String
+    
+    // Activation & Licensing keys
+    val activationTitle: String
+    val activationSubtitle: String
+    val activationKeyLabel: String
+    val activationKeyPlaceholder: String
+    val activateButton: String
+    val activationErrorInvalid: String
+    val activationErrorNetwork: String
+    val licenseExpiredTitle: String
+    val licenseExpiredSubtitle: String
+    val licenseDeviceLocked: String
+    val deviceIdLabel: String
+    val copyDeviceId: String
+    val copiedToClipboard: String
+    val save: String
+    val localHostUrlLabel: String
+    val localServerSettings: String
+    val settingsBtn: String
+    val activationErrorLimit: String
 }
 
 object EnStrings : AppStrings {
@@ -322,6 +342,26 @@ object EnStrings : AppStrings {
     override val apiSyncSuccess = "Data synced via API successfully!"
     override val apiSyncError = "API sync failed: "
     override val apiSyncDesc = "Send saved groups and items dynamically to third-party endpoints. Uses background coroutine execution."
+    
+    // Activation & Licensing translations (EN)
+    override val activationTitle = "Activation Required"
+    override val activationSubtitle = "This is a secure test version. Please enter your activation key to unlock the app."
+    override val activationKeyLabel = "Activation Key / API Key"
+    override val activationKeyPlaceholder = "Enter sv_live_... key"
+    override val activateButton = "Activate App"
+    override val activationErrorInvalid = "Invalid or expired activation key for this device."
+    override val activationErrorNetwork = "Server connection failed. Please check internet connection."
+    override val licenseExpiredTitle = "License Expired"
+    override val licenseExpiredSubtitle = "The testing period for this APK has expired or this key has been deactivated."
+    override val licenseDeviceLocked = "This key is locked to another device instance."
+    override val deviceIdLabel = "Your Device ID"
+    override val copyDeviceId = "Copy Device ID"
+    override val copiedToClipboard = "Device ID copied to clipboard!"
+    override val save = "Save"
+    override val localHostUrlLabel = "Local Server URL (Host:Port)"
+    override val localServerSettings = "Local Server Settings"
+    override val settingsBtn = "Settings"
+    override val activationErrorLimit = "Active device limit reached on license."
 }
 
 // Proper Lithuanian Strings (Grammatically correct with standard accented characters)
@@ -481,6 +521,26 @@ object LtStrings : AppStrings {
     override val apiSyncSuccess = "Duomenys sėkmingai sinchronizuoti per API!"
     override val apiSyncError = "API sinchronizacijos klaida: "
     override val apiSyncDesc = "Automatiškai siųsti išsaugotas prekes ir grupes į išorinius API tinklus fone."
+    
+    // Activation & Licensing translations (LT)
+    override val activationTitle = "Reikalingas aktyvavimas"
+    override val activationSubtitle = "Tai yra bandomoji testinė versija. Norėdami naudotis programa, įveskite licencijos raktą."
+    override val activationKeyLabel = "Aktyvavimo raktas / API raktas"
+    override val activationKeyPlaceholder = "Įveskite sv_live_... raktą"
+    override val activateButton = "Aktyvuoti programą"
+    override val activationErrorInvalid = "Neteisingas arba nebegaliojantis aktyvavimo raktas šiam įrenginiui."
+    override val activationErrorNetwork = "Nepavyko susisiekti su serveriu. Patikrinkite interneto ryšį."
+    override val licenseExpiredTitle = "Licencijos galiojimas pasibaigė"
+    override val licenseExpiredSubtitle = "Šio testinio APK galiojimo laikas baigėsi arba licencija buvo išjungta."
+    override val licenseDeviceLocked = "Šis licencijos raktas yra susietas su kitu įrenginiu."
+    override val deviceIdLabel = "Jūsų įrenginio ID"
+    override val copyDeviceId = "Kopijuoti įrenginio ID"
+    override val copiedToClipboard = "Įrenginio ID nukopijuotas į iškarpinę!"
+    override val save = "Išsaugoti"
+    override val localHostUrlLabel = "Vietinio serverio adresas (Host:Port)"
+    override val localServerSettings = "Vietinio serverio nustatymai"
+    override val settingsBtn = "Nustatymai"
+    override val activationErrorLimit = "Viršytas licencijoje nustatytas įrenginių skaičius."
 }
 
 val LocalAppStrings = staticCompositionLocalOf<AppStrings> { EnStrings }

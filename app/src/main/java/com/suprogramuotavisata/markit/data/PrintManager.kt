@@ -191,6 +191,14 @@ object PrintManager {
         val rotationStr = sharedPrefs.getString("label_rotation", "0") ?: "0"
         val rotation = rotationStr.toIntOrNull() ?: 0
         val qrOnly = sharedPrefs.getBoolean("print_qr_only", false)
+        val tapeWidth = sharedPrefs.getInt("printer_tape_width", 24)
+        val targetWidth = when (tapeWidth) {
+            18 -> 112
+            12 -> 74
+            9  -> 50
+            6  -> 32
+            else -> 128
+        }
 
         val labelBitmap = BarcodeGenerator.generateLabel(
             group.name,
@@ -198,7 +206,8 @@ object PrintManager {
             group.barcode,
             group.description,
             rotation,
-            qrOnly
+            qrOnly,
+            targetWidth
         )
         printBarcode(context, group.name, labelBitmap)
     }
@@ -211,6 +220,14 @@ object PrintManager {
         val rotationStr = sharedPrefs.getString("label_rotation", "0") ?: "0"
         val rotation = rotationStr.toIntOrNull() ?: 0
         val qrOnly = sharedPrefs.getBoolean("print_qr_only", false)
+        val tapeWidth = sharedPrefs.getInt("printer_tape_width", 24)
+        val targetWidth = when (tapeWidth) {
+            18 -> 112
+            12 -> 74
+            9  -> 50
+            6  -> 32
+            else -> 128
+        }
 
         val labelBitmap = BarcodeGenerator.generateLabel(
             groupName,
@@ -218,7 +235,8 @@ object PrintManager {
             barcode,
             comment,
             rotation,
-            qrOnly
+            qrOnly,
+            targetWidth
         )
         printBarcode(context, code, labelBitmap)
     }

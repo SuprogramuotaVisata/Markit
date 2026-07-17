@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,6 +19,8 @@ import com.suprogramuotavisata.markit.data.EnStrings
 import com.suprogramuotavisata.markit.data.LocalAppStrings
 import com.suprogramuotavisata.markit.data.LtStrings
 import com.suprogramuotavisata.markit.data.TranslationManager
+import com.suprogramuotavisata.markit.data.LicensingManager
+import com.suprogramuotavisata.markit.ui.ActivationScreen
 import com.suprogramuotavisata.markit.theme.MarkItTheme
 import android.app.PendingIntent
 import android.content.Intent
@@ -56,17 +59,36 @@ class MainActivity : ComponentActivity() {
     setContent {
       var language by remember { mutableStateOf(TranslationManager.getLanguage(this)) }
       val strings = if (language == AppLanguage.LT) LtStrings else EnStrings
+      var isActivated by remember { mutableStateOf(LicensingManager.isActivated(this)) }
+
+      LaunchedEffect(Unit) {
+        val isValid = LicensingManager.verifyActiveLicense(this@MainActivity)
+        isActivated = isValid
+      }
 
       CompositionLocalProvider(LocalAppStrings provides strings) {
         MarkItTheme {
           Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            MainNavigation(
-              currentLanguage = language,
-              onLanguageToggle = { newLang ->
-                TranslationManager.setLanguage(this, newLang)
-                language = newLang
-              }
-            )
+            if (isActivated) {
+              MainNavigation(
+                currentLanguage = language,
+                onLanguageToggle = { newLang ->
+                  TranslationManager.setLanguage(this, newLang)
+                  language = newLang
+                }
+              )
+            } else {
+              ActivationScreen(
+                currentLanguage = language,
+                onLanguageToggle = { newLang ->
+                  TranslationManager.setLanguage(this, newLang)
+                  language = newLang
+                },
+                onActivationSuccess = {
+                  isActivated = true
+                }
+              )
+            }
           }
         }
       }
